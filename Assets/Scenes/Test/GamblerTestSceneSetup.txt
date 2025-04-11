@@ -1,0 +1,168 @@
+
+======================================================
+GAMBLER CHARACTER TEST SCENE SETUP
+======================================================
+
+This document outlines the recommended configuration for setting up
+a test scene to validate the Gambler character mechanics, UI, and
+effects in a Portland gold rush era themed environment.
+
+------------------------------
+1. SCENE HIERARCHY
+------------------------------
+
+Recommended hierarchy structure:
+- GamblerTestScene
+  |- Environment
+     |- Floor
+     |- Walls
+     |- Props (barrels, crates, saloon elements)
+     |- LightingRig
+  |- Player
+     |- GamblerCharacter
+        |- CardSpawnPoint
+        |- EffectsManager
+        |- BuzzSystem
+  |- Enemies
+     |- TestDummy
+  |- UI
+     |- Canvas
+        |- BuzzMeter
+        |- HandDisplay
+        |- AbilityIndicators
+        |- NotificationArea
+     |- EventSystem
+  |- Managers
+     |- GameManager
+     |- CardEffectsController
+     |- EnvironmentManager
+  |- Cameras
+     |- MainCamera
+     |- UICamera (optional)
+
+------------------------------
+2. CAMERA SETUP
+------------------------------
+
+Main Camera Configuration:
+- Position: (0, 1.6, -4) 
+- Rotation: (10, 0, 0)
+- FOV: 60
+- Clear Flags: Skybox
+- Culling Mask: Everything except UI
+- Post-Processing: Enable period-appropriate effects
+  * Slight sepia tone
+  * Vignette (moderate)
+  * Film grain (subtle)
+  * Chromatic aberration (minimal)
+
+UI Camera (if needed):
+- Clear Flags: Depth Only
+- Culling Mask: UI only
+- Depth: 1
+
+------------------------------
+3. LIGHTING SETUP
+------------------------------
+
+Key Lighting Elements:
+- Directional Light (Main)
+  * Intensity: 0.7
+  * Color: #FFE8BA (warm)
+  * Shadows: Soft
+  
+- Point Lights (Ambience)
+  * Lantern/Candle style
+  * Intensity: 0.4-0.6
+  * Color: #FFD28A (amber/yellow)
+  * Range: 5-8 units
+  * Position at strategic points in the environment
+
+- Environmental Lighting
+  * Ambient Intensity: 0.3
+  * Ambient Color: #403D3A (muted brown)
+
+------------------------------
+4. UI CANVAS CONFIGURATION
+------------------------------
+
+Canvas Settings:
+- Render Mode: Screen Space - Overlay
+- Canvas Scaler: Scale With Screen Size
+- Reference Resolution: 1920x1080
+- Screen Match Mode: Match Width or Height (0.5)
+
+BuzzMeter Placement:
+- Position: Top-left corner
+- Size: 200 x 40 pixels
+- Animation: Subtle pulse effect
+
+Hand Display:
+- Position: Bottom-center
+- Size: 600 x 150 pixels
+- Card Slots: 5 evenly spaced slots
+
+Ability Indicators:
+- Position: Bottom-right
+- Size: 120 x 120 pixels
+- Content: Slice and Flick ability icons with cooldown overlays
+
+Notification Area:
+- Position: Top-center
+- Size: 400 x 120 pixels
+- Fade-in/out animations for notifications
+
+------------------------------
+5. TESTING ELEMENTS
+------------------------------
+
+Include these elements for comprehensive testing:
+- Ability Testing Area
+  * Target dummies at various distances
+  * Damage indicators for feedback
+  
+- Environment Switching
+  * Toggle button to simulate entering tunnels/speakeasy
+  * Visual indicators for current environment
+  
+- Buzz Management Testing
+  * Button to add/reduce buzz
+  * Indicators for current buzz state
+  
+- Card Mechanics Testing
+  * Deck management visualization
+  * Draw/discard rate controls
+  * Critical hit chance adjustment
+
+------------------------------
+6. PERFORMANCE MONITORING
+------------------------------
+
+Add performance monitoring elements:
+- FPS counter
+- Particle effect count
+- Active object count
+- DrawCall/BatchCount indicators
+
+These will help ensure the visual effects system is optimized.
+
+------------------------------
+7. HISTORICAL REFERENCES
+------------------------------
+
+Include period-appropriate elements for authenticity:
+- Reference materials in scene
+  * Historical Portland photographs
+  * Gold rush era artifacts
+  * Period-appropriate color schemes
+  
+- Architectural elements
+  * Wooden structures
+  * Gas lighting fixtures
+  * Cast iron details
+  
+- Environmental details
+  * Dirt/mud ground textures
+  * Weathered wood
+  * Period signage styles
+

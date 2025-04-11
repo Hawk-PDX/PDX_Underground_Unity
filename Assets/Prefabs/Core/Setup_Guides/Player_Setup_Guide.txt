@@ -1,0 +1,121 @@
+# Player Prefab Setup Guide
+
+## Creating the Player Prefab in Unity Editor
+
+Follow these steps to create a properly configured Player prefab with all required components:
+
+### 1. Basic GameObject Structure
+
+1. In the Hierarchy panel, create a new empty GameObject:
+   - Right-click in Hierarchy → Create Empty
+   - Rename it to "Player"
+
+2. Add a simple visual representation (temporary):
+   - Right-click on Player → 3D Object → Capsule
+   - Rename to "PlayerModel"
+   - Position: (0, 0, 0) relative to parent
+   - Scale: (1, 1, 1) or adjust as needed
+
+### 2. Required Components Setup
+
+#### Character Controller Component
+
+1. Select the Player GameObject (parent)
+2. Add Component → Character Controller
+3. Configure Character Controller:
+   - Height: 2.0
+   - Radius: 0.5
+   - Step Offset: 0.3
+   - Skin Width: 0.08
+   - Min Move Distance: 0.001
+   - Center: (0, 1, 0)
+   - Slope Limit: 45
+   - Step Offset: 0.3
+
+#### GamblerCharacter Component
+
+1. Select the Player GameObject
+2. Add Component → GamblerCharacter
+3. Configure GamblerCharacter:
+   
+   **Character Stats:**
+   - Max Health: 100
+   - Current Health: 100
+   - Max Energy: 100
+   - Current Energy: 100
+   - Accuracy: 10
+   - Defense: 10
+   
+   **Buzz System:**
+   - Max Buzz: 100
+   - Current Buzz: 50 (starting value)
+   - Critical Buzz Threshold: 30
+   - Buzz Decay Rate: 5
+   - Natural Buzz Gain Rate: 2
+   - Low Buzz Threshold: 20
+   - Accuracy Penalty: 0.25
+   - Defense Penalty: 0.25
+   
+   **Card System:**
+   - Initial Hand Size: 3
+   - Max Hand Size: 5
+   - Draws Per Turn: 1
+   - If using custom starter cards, add them to Starting Deck array
+
+#### PlayerController Component
+
+1. Select the Player GameObject
+2. Add Component → PlayerController
+3. Configure PlayerController:
+   
+   **Movement Settings:**
+   - Base Movement Speed: 5.0
+   - Movement Speed Multiplier: 1.0
+   - Rotation Speed: 10.0
+   - Jump Force: 7.0
+   - Gravity Multiplier: 2.0
+   - Max Fall Velocity: 20.0
+   
+   **Ground Check:**
+   - Ground Mask: Everything (or your walkable layers)
+   - Ground Check Distance: 0.2
+   - Ground Check Radius: 0.3
+
+### 3. Component References
+
+1. Set up cross-component references:
+   - In PlayerController, find "Gambler Character" field
+   - Drag the Player GameObject (which has GamblerCharacter) into this field
+   
+   - In GamblerCharacter, the "Player Controller" reference will be automatically
+     found in Awake(), but you can manually assign it for safety
+
+### 4. Create the Prefab
+
+1. Drag the configured Player GameObject from Hierarchy into Assets/Prefabs/Player folder
+2. This will create Player.prefab
+
+## Integration with Game Systems
+
+1. The Player prefab should be placed in your game scene
+2. The GamblerCharacter script will automatically register with MainGameController
+3. Make sure the MainGameController is already in the scene
+
+## Testing Player Functionality
+
+To test the player functionality:
+1. Place the Player prefab in your scene
+2. Ensure the MainGameController is also present
+3. Run the scene and verify:
+   - Player movement works with WASD/arrow keys
+   - Jumping works with Space
+   - Buzz level displays correctly and decays over time
+   - Critical buzz state triggers when below threshold
+
+## Troubleshooting
+
+1. If player doesn't move: Check input axes in Edit → Project Settings → Input Manager
+2. If buzz system doesn't work: Verify MainGameController is in scene
+3. If character falls through ground: Check ground layers and collision settings
+4. If components aren't working together: Verify cross-references between components
+

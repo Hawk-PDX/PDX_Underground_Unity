@@ -1,0 +1,17 @@
+Material Properties for Player.mat:
+
+Name: "Player"
+Shader: Standard
+Properties:
+  _Color: (0.2, 0.4, 0.8, 1) // Blue
+  _MainTex: null
+  _Glossiness: 0.5
+  _Metallic: 0
+
+Instructions:
+1. In Unity, create a new material named "Player"
+2. Set the shader to "Standard"
+3. Set the Albedo color to RGB(51, 102, 204) or #3366CC
+4. Set Smoothness to 0.5
+5. Set Metallic to 0
+

@@ -1,0 +1,17 @@
+Material Properties for Ground.mat:
+
+Name: "Ground"
+Shader: Standard
+Properties:
+  _Color: (0.2, 0.2, 0.2, 1) // Dark gray
+  _MainTex: null
+  _Glossiness: 0.2
+  _Metallic: 0
+
+Instructions:
+1. In Unity, create a new material named "Ground"
+2. Set the shader to "Standard"
+3. Set the Albedo color to RGB(51, 51, 51) or #333333
+4. Set Smoothness to 0.2
+5. Set Metallic to 0
+

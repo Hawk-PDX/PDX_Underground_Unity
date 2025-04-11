@@ -1,0 +1,63 @@
+# TestScene Setup Instructions
+
+## Initial Scene Structure
+1. Open Unity and create a new scene named "TestScene" in the Assets/Scenes folder
+2. Save the scene as "TestScene.unity"
+3. Create the following GameObject hierarchy:
+   - SceneSetup (empty GameObject)
+     - Add the TestSceneSetup component
+   - GameManager (empty GameObject)
+     - Add the GameManager component
+
+## TestSceneSetup Component Configuration
+Configure the TestSceneSetup component on the SceneSetup GameObject with these settings:
+1. Materials:
+   - Ground Material: Create material using properties from Ground_Material_Properties.txt
+   - Wall Material: Create material using properties from Wall_Material_Properties.txt
+   - Player Material: Create material using properties from Player_Material_Properties.txt
+2. Scene Settings:
+   - Ground Size: X: 20, Y: 20
+   - Wall Height: 4
+   - Player Start Position: X: 0, Y: 1, Z: 0
+
+## Scene Settings
+1. Lighting:
+   - Set to Default realtime
+   - Ensure "Baked Global Illumination" is disabled
+2. Skybox:
+   - Use the default skybox material
+
+## Build Settings
+1. Open Build Settings (File > Build Settings)
+2. Add TestScene to the build
+3. Set as active scene
+
+## Quality Settings
+1. Open Quality Settings (Edit > Project Settings > Quality)
+2. Set default quality level to "High"
+3. Enable soft shadows
+4. Enable ambient occlusion
+
+## Player Settings
+1. Open Player Settings (Edit > Project Settings > Player)
+2. Set Product Name to "PDX Underground"
+3. Set Default Screen Size to 1280x720
+4. Enable Display Resolution Dialog
+
+## Testing the Scene
+1. Enter Play mode to test
+2. The TestSceneSetup script should automatically create:
+   - Ground plane
+   - Four boundary walls
+   - Player character with required components
+   - Main camera
+   - Directional light
+3. You should be able to move the player with WASD/arrow keys and jump with Space
+
+## Additional Troubleshooting
+If objects aren't created automatically:
+1. Check console for errors
+2. Ensure all scripts are compiling correctly
+3. Verify material references are set correctly
+4. Check that the GameManager exists in the scene
+

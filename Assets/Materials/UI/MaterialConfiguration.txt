@@ -1,0 +1,93 @@
+======================================================
+PORTLAND GOLD RUSH ERA UI MATERIAL CONFIGURATION
+======================================================
+
+This configuration file provides settings for creating period-appropriate
+UI materials for the Gambler character system. These settings reflect
+the aesthetic of 1800s Portland during the gold rush era.
+
+------------------------------
+1. BUZZ METER MATERIAL
+------------------------------
+
+Create a new material named "BuzzMeterMaterial" with these properties:
+
+Shader: UI/Default (or UI/Particles/Additive if using particle effects)
+
+Properties:
+- Main Color: #D4B86A (gold/amber)
+- Texture: Weathered paper texture with slight grunge/aging
+- Rendering Mode: Transparent
+- Smoothness: 0.2 (minimal reflection, period-appropriate)
+- Normal Map: Light paper grain texture
+
+Special Properties:
+- Enable Color Transition: Yes
+- Color Transition States:
+  * Normal: #D4B86A (gold/amber)
+  * Low: #CB7E3E (copper/amber)
+  * Critical: #A42C21 (deep red)
+  
+Historical Notes:
+- Draw inspiration from saloon signage of the era
+- Include subtle leather texture influences
+- Avoid high-gloss modern looks
+- Consider the limited palette of period printing
+
+------------------------------
+2. CARD EFFECTS MATERIAL
+------------------------------
+
+Create a new material named "CardEffectsMaterial" with these properties:
+
+Shader: Particles/Standard Surface (or Mobile/Particles/Additive)
+
+Properties:
+- Main Color: #FFFFFF (white base for tinting)
+- Texture: Playing card texture with period-appropriate design
+- Emission: Moderate (0.5)
+- Emission Color: #FFD580 (soft gold)
+  
+Trail Renderer Settings:
+- Width: Start: 0.15, End: 0.0
+- Color Gradient:
+  * Start: #FFFFFF with alpha 0.8
+  * Middle: Card suit color with alpha 0.5
+  * End: #000000 with alpha 0.0
+- Min Vertex Distance: 0.1
+- Time: 0.5 seconds
+- Material: CardTrailMaterial (Self-illuminated)
+
+Particle Effect Settings:
+- Start Size: 0.1
+- End Size: 0.01
+- Lifetime: 0.8 seconds
+- Emission Rate: 15 per second
+- Gravity Modifier: 0.1
+- Simulation Space: World
+- Collision: Enabled with medium bounce
+
+Historical Styling:
+- Based on 1850s-1870s playing card designs
+- Include subtle wear/aging on card edges
+- Use period-appropriate card back designs
+- Reference the "Hart's Saratoga" or "Steamboat" card styles
+
+------------------------------
+3. ENVIRONMENT-SPECIFIC MATERIALS
+------------------------------
+
+Shanghai Tunnels Card Material:
+- Main Color: #3D5362 (muted blue-gray)
+- Emission: Low (0.3)
+- Emission Color: #405060 (misty blue)
+- Alpha: 0.7 (slightly transparent)
+- Particle Effect: Add subtle mist/fog particles
+
+Speakeasy Card Material:
+- Main Color: #6A3A2D (rich brown)
+- Emission: Medium (0.6)
+- Emission Color: #FFC773 (warm gold)
+- Alpha: 0.9
+- Particle Effect: Add subtle ember/spark particles
+

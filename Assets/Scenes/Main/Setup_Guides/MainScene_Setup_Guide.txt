@@ -1,0 +1,185 @@
+# PDX Underground - MainScene Setup Guide
+
+This guide walks you through setting up the main game scene with all required components and systems.
+
+## 1. Scene Hierarchy Organization
+
+Create a clean, organized hierarchy using empty GameObjects as organizational containers:
+
+```
+MainScene
+├── _GameSystems
+│   ├── GameController
+│   ├── EnvironmentController
+│   └── UIController
+├── _Level
+│   ├── Ground
+│   ├── Streets
+│   ├── Tunnels
+│   └── Speakeasy
+├── _Lighting
+│   ├── DirectionalLight
+│   ├── StreetLights
+│   ├── TunnelLights
+│   └── SpeakeasyLights
+├── _Characters
+│   ├── Player
+│   └── NPCs
+└── _Cameras
+    └── MainCamera
+```
+
+## 2. Required Prefab Placement
+
+### GameController Setup
+
+1. In the Project view, locate GameController prefab in Assets/Prefabs/Core
+2. Drag it into the scene under _GameSystems
+3. Ensure there's only one instance of GameController
+4. The controller initializes in MainMenu state by default
+
+### Player Setup
+
+1. In the Project view, locate Player prefab in Assets/Prefabs/Player
+2. Drag it into the scene under _Characters
+3. Position the player at the starting point (e.g., 0, 1, 0)
+4. Ensure Player has clear references:
+   - Character Controller component attached
+   - GamblerCharacter component configured
+   - PlayerController component configured
+
+### Environment Controllers
+
+1. Create an EnvironmentController GameObject under _GameSystems
+2. Add the GameEnvironmentController script to it
+3. This controller handles:
+   - Gaslight management
+   - Environment type transitions
+   - Weather effects
+
+### Gaslight Placement
+
+1. In the Project view, locate Gaslight prefab in Assets/Prefabs/Environment
+2. Place multiple instances in appropriate locations:
+   
+   **Streets Environment:**
+   - Place every 10-15 units along street paths
+   - Position at height of approximately 2.5 units
+   - Use default settings
+   
+   **Tunnels Environment:**
+   - Place every 8-10 units along tunnel paths
+   - Use reduced light range (5-7)
+   - Configure with redder color and more flicker
+   
+   **Speakeasy Environment:**
+   - Place in corners and key focal points
+   - Use warmer color and minimal flicker
+   - Set higher intensity (1.2)
+
+## 3. Environment Setup
+
+### Ground and Basic Level Structure
+
+1. Create a Ground object under _Level
+   - Add a Plane or Cube with scale (50, 1, 50)
+   - Add a MeshCollider component
+   - Position at (0, 0, 0)
+   - Apply appropriate material
+
+2. Create basic level geometry:
+   - Streets: Add building facades, roads, obstacles
+   - Tunnels: Add tunnel walls, pipes, structural elements
+   - Speakeasy: Add interior elements, furniture, bar area
+
+### Lighting Setup
+
+1. Create a Directional Light under _Lighting
+   - Set low intensity (0.3-0.5) for night-time mood
+   - Set warm color for street lighting
+   - Enable shadows
+
+2. Add ambient lighting in Window → Rendering → Lighting Settings
+   - Set Source to "Color"
+   - Set Ambient Color to dark blue-gray for night ambience
+   - Configure appropriate reflection settings
+
+3. Make sure all gaslights have their GaslightFlicker component properly configured
+   - Each environment (Streets, Tunnels, Speakeasy) should have appropriate light settings
+
+## 4. Testing Procedures
+
+### Verify Core Systems
+
+1. Enter Play mode
+2. Check the Console for any initialization errors
+3. Verify GameController initializes correctly
+4. Test player movement (WASD/arrow keys and space for jump)
+
+### Test Environment Transitions
+
+1. Create simple UI buttons to trigger environment changes
+2. Click to switch between environments and verify:
+   - Environment state changes in GameController
+   - Appropriate gaslights activate/deactivate
+   - Any environment-specific effects apply
+
+### Test Buzz System
+
+1. Create debug buttons to modify buzz level
+2. Test buzz level changes and verify:
+   - UI updates to reflect buzz level
+   - Critical state triggers when buzz level is below threshold
+   - Player movement speed changes with buzz level
+
+### Test Interactions
+
+1. Place interactable objects in the scene
+2. Test player interactions with environment
+3. Test card drawing and usage if implemented
+
+## 5. Troubleshooting Common Issues
+
+### Missing References
+
+If components report missing references in the console:
+1. Verify all required components are in the scene
+2. Check the Inspector for unassigned references
+3. Ensure scripts are properly attached to GameObjects
+
+### Player Movement Issues
+
+If the player doesn't move or falls through the ground:
+1. Check Character Controller settings
+2. Verify ground has a proper collider
+3. Ensure input axes are properly configured
+
+### Light Flickering Problems
+
+If gaslights don't flicker properly:
+1. Check GaslightFlicker component configuration
+2. Verify Light component reference is correctly assigned
+3. Ensure the EnvironmentController is properly set up
+
+### Game State Management Issues
+
+If game state changes don't work properly:
+1. Verify only one GameController instance exists
+2. Check event subscriptions in relevant components
+3. Verify state transition logic in MainGameController
+
+### Performance Optimization
+
+If you experience performance issues:
+1. Reduce number of real-time lights
+2. Use Light Probes for better performance
+3. Optimize shadow settings
+4. Consider using Level of Detail (LOD) for complex objects
+
+## Final Notes
+
+- Test the scene thoroughly before building
+- Ensure all components are properly connected via the Inspector
+- Document any changes to the standard setup for future reference
+- Consider creating prefabs for common room/environment configurations
+

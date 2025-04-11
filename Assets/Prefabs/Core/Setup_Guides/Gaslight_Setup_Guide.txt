@@ -1,0 +1,151 @@
+# Gaslight Prefab Setup Guide
+
+## Creating the Gaslight Prefab in Unity Editor
+
+Follow these steps to create a properly configured Gaslight prefab with the GaslightFlicker component:
+
+### 1. Basic GameObject Structure
+
+1. In the Hierarchy panel, create a new empty GameObject:
+   - Right-click in Hierarchy → Create Empty
+   - Rename it to "Gaslight"
+
+2. Add a visual model:
+   - Right-click on Gaslight → 3D Object → Cylinder
+   - Rename to "GaslightPole"
+   - Scale: (0.1, 1.0, 0.1) - adjust as needed for your visuals
+   - Position: (0, 0, 0)
+
+3. Add a lamp top:
+   - Right-click on Gaslight → 3D Object → Sphere
+   - Rename to "LampGlobe"
+   - Scale: (0.2, 0.2, 0.2) - adjust as needed
+   - Position: (0, 1.0, 0) - place it on top of the pole
+
+4. Create a Light source:
+   - Right-click on LampGlobe → Light → Point Light
+   - Rename to "GaslightLight"
+   - Position: (0, 0, 0) relative to parent
+
+### 2. Component Configuration
+
+#### Light Component
+
+1. Select the GaslightLight GameObject
+2. Configure Point Light component:
+   - Color: Warm orange/yellow (RGB: 255, 204, 153)
+   - Intensity: 0.8
+   - Range: 10
+   - Indirect Multiplier: 1
+   - Mode: Realtime
+   - Shadows: Soft Shadows (if performance allows)
+
+#### GaslightFlicker Component
+
+1. Select the Gaslight (parent) GameObject
+2. Add Component → GaslightFlicker
+3. Configure GaslightFlicker:
+
+   **Light Settings:**
+   - Gaslight Light: Drag the GaslightLight GameObject here
+   - Base Intensity: 0.8
+   - Base Color: Warm orange/yellow (RGB: 255, 204, 153)
+   - Light Range: 10
+   - Start On: True
+
+   **Flicker Settings:**
+   - Enable Flicker: True
+   - Flicker Speed: 0.1
+   - Min Intensity Multiplier: 0.8
+   - Max Intensity Multiplier: 1.2
+   - Color Variation: 0.1
+
+   **Weather Effects:**
+   - Respond To Weather: True
+   - Calm Wind Multiplier: 1.0
+   - Storm Wind Multiplier: 3.0
+
+### 3. Create the Prefab
+
+1. Drag the configured Gaslight GameObject from Hierarchy into Assets/Prefabs/Environment folder
+2. This will create Gaslight.prefab
+
+## Environment Integration
+
+To integrate the gaslight with your environment systems, follow these steps:
+
+### 1. Create a GameEnvironmentController
+
+If you don't already have a GameEnvironmentController in your scene:
+
+1. Create a new C# script called GameEnvironmentController
+2. Implement the following methods in the script:
+   ```csharp
+   public void AddGaslight(GaslightFlicker gaslight)
+   {
+       // Add to a list of managed gaslights
+   }
+
+   public void RemoveGaslight(GaslightFlicker gaslight)
+   {
+       // Remove from the list of managed gaslights
+   }
+
+   public void SetWeatherCondition(float intensity)
+   {
+       // Update all gaslights with the new weather intensity
+       // Typically called from a weather system
+   }
+   ```
+
+3. Create a GameObject in your scene called "EnvironmentController"
+4. Add the GameEnvironmentController component to it
+
+### 2. Place Gaslight Prefabs in Your Scene
+
+1. Drag the Gaslight prefab into your scene multiple times
+2. Position them appropriately as needed for your level design
+3. Consider creating gaslight variants:
+   - Different heights
+   - Different intensities for different areas
+   - Different flicker settings for mood variation
+
+### 3. Environment-specific Settings
+
+For different environments (Streets, Tunnels, Speakeasy):
+
+**Streets:**
+- Default settings
+- Higher weather responsiveness
+
+**Tunnels:**
+- Reduced range (5-7)
+- More intense flicker
+- Lower base intensity (0.6)
+- Redder base color
+
+**Speakeasy:**
+- Warmer color
+- Minimal flickering (0.05)
+- Higher intensity (1.2)
+
+## Testing and Troubleshooting
+
+1. **Flickering not working:**
+   - Ensure Enable Flicker is checked
+   - Verify the light reference is properly assigned
+
+2. **Weather effects not applying:**
+   - Check Respond To Weather is enabled
+   - Verify GameEnvironmentController is in the scene
+   - Ensure weather system is calling SetWeatherCondition on the controller
+
+3. **Light appears but doesn't match settings:**
+   - Light component may have been modified directly
+   - Reset prefab or reassign values in the GaslightFlicker component
+
+4. **Performance issues:**
+   - Reduce the number of real-time lights
+   - Lower shadow quality or disable shadows
+   - Consider using Light Probes for better performance
+

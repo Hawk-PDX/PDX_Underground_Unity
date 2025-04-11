@@ -1,0 +1,62 @@
+# GameController Prefab Setup Guide
+
+## Creating the GameController Prefab in Unity Editor
+
+Follow these steps to create the GameController prefab with proper MainGameController component configuration:
+
+1. Open your Unity project (PDX_Underground_Unity)
+
+2. In the Hierarchy panel, create a new empty GameObject:
+   - Right-click in the Hierarchy → Create Empty
+   - Rename it to "GameController"
+
+3. Add the MainGameController component:
+   - Select the GameController GameObject
+   - In the Inspector, click "Add Component"
+   - Search for "MainGameController" and add it
+
+4. Configure the MainGameController component:
+   - Game State section:
+     - Current State: MainMenu (default)
+   
+   - Environment section:
+     - Current Environment Index: 0
+     - Environment Types: 
+       - Element 0: "Streets"
+       - Element 1: "Tunnels" 
+       - Element 2: "Speakeasy"
+     - Current Environment: Streets
+   
+   - Buzz Management section:
+     - Buzz Level: 0
+     - Critical Buzz Level: 30
+
+5. Create the Prefab:
+   - Drag the configured GameController from the Hierarchy into the Assets/Prefabs/Core folder
+   - This will create the GameController.prefab asset
+
+## Integrating the GameController in your Scene
+
+For each scene that needs the GameController:
+
+1. Drag the GameController prefab from Assets/Prefabs/Core into your scene Hierarchy
+   
+2. The prefab is configured with DontDestroyOnLoad, so it will persist between scenes
+   
+3. Any references to MainGameController.Instance can now find this object
+
+## Important Notes
+
+- Only one instance of the GameController should exist at runtime
+- The MainGameController uses a singleton pattern to ensure this
+- The script will handle duplicate detection and destroy any duplicates
+- Environment and buzz settings will persist across scene loads
+
+## Required Integration Points
+
+The GameController needs to connect with:
+- BuzzUIController (UI reference)
+- GamblerCharacter (Player reference)
+
+These connections will be established automatically at runtime by the InitializeGameSystems method.
+
