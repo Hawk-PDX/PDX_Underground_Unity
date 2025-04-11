@@ -1,120 +1,44 @@
 # PDX Underground
 
-A Unity game set in 1800s Portland featuring card-based combat mechanics and unique energy systems.
-   
-## Project Overview
+A Unity game set in 1880s Portland, Oregon, featuring the mysterious Shanghai Tunnels and historical speakeasies.
 
-PDX Underground is a character-based action game set in the historical Portland underground. The game features unique combat mechanics centered around cards and a special energy system called "Buzz". Players will take on the role of various characters, starting with the "Gambler" who uses cards as both melee and ranged weapons.
+## Project Description
 
-## Implemented Systems
+PDX Underground is an atmospheric narrative-driven game set in the dark underbelly of late 19th century Portland. Players navigate the treacherous Shanghai Tunnels, interact with historical speakeasies, and unravel the mysteries of Portland's shadowy past.
 
-### Gambler Character
+The game features:
+- Character-driven narrative set in historically accurate locations
+- Atmospheric lighting using a custom gaslights system
+- "Buzz" mechanic representing the character's awareness and state of mind
+- Card-based ability system for interactions and challenges
+- Multiple environments: Streets, Tunnels, and Speakeasy
 
-The Gambler is a character who specializes in card-based combat:
+## Gameplay Mechanics
+
+### Combat System
+
+The game uses a unique card-based combat system with the Gambler character:
 - Uses "Buzz" energy to power abilities
-- Has dual-wielding melee capabilities
+- Features dual-wielding melee capabilities
 - Can throw cards as ranged projectiles
-- Features critical hit mechanics that restore Buzz on successful hits
+- Critical hit mechanics restore Buzz on successful hits
 
-### Combat Abilities
-
-#### Base CombatAbility System
-- Abstract base class for all character abilities
-- Manages cooldowns, energy costs, and damage calculations
-- Handles critical hit chances and effects
-- Manages animation and VFX triggering
+### Key Abilities
 
 #### Slice Ability
 - Close-range melee attack using dual-wielded cards
 - Deals damage in a frontal arc
 - Multiple hits in a combo sequence
 - Higher damage than ranged attacks
-- Visual feedback with slicing effects
 
 #### Flick Ability
 - Ranged attack that throws cards at targets
 - Can throw multiple cards with spreading patterns
 - Cards stick to hit surfaces
 - Critical hits restore Buzz energy
-- Customizable projectile physics
 
-### User Interface
+### Controls
 
-The game includes a comprehensive UI system:
-- Buzz meter showing available energy
-- Card hand display for available cards
-- Ability cooldown indicators with visual feedback
-- Debug panel showing character stats and combat log
-- Health displays for target dummies
-
-## Test Scene Setup
-
-### Creating the Test Environment
-
-1. Open Unity and load the PDX_Underground_Unity project
-2. Go to the menu: **PDX Underground > Test > Create Test Scene**
-3. Unity will create a complete test environment with:
-   - Period-appropriate visuals (wooden floors, lanterns, barrels)
-   - Target dummies for testing combat
-   - Complete UI system
-   - The Gambler character with abilities configured
-   - Third-person camera with proper controls
-
-### Individual Setup Options
-
-You can also set up individual components:
-- **PDX Underground > Test > Setup Gambler Character** - Only creates the player character
-- **PDX Underground > Test > Setup UI Elements** - Only sets up the UI
-- **PDX Underground > Test > Create Target Dummies** - Only creates targets for testing
-
-## Historical Lighting System
-
-PDX Underground features a historically accurate lighting system that recreates authentic 1800s Portland illumination:
-
-### LanternFlicker System
-
-The LanternFlicker component provides period-appropriate lighting effects:
-- Realistic flickering behavior based on lamp type
-- Historically accurate color temperatures
-- Gas lamp synchronization across shared gas lines
-- Variable intensity with occasional pressure drops for gas lamps
-
-### Lamp Types and Historical Accuracy
-
-#### Gas Lamps
-- Color temperature range: 1800K-2000K
-- Strong synchronization between lamps on shared gas lines
-- Occasional pressure drops affecting connected lamps
-- Moderate flickering with characteristic "pulse" effect
-
-#### Oil Lamps
-- Color temperature range: 1900K-2300K
-- Independent behavior without synchronization
-- Slower, more gentle flickering pattern
-- Less pronounced intensity variation
-
-#### Candle Lamps
-- Color temperature range: 1700K-1900K
-- Most variable flickering pattern
-- Affected by air movement
-- No synchronization between candle lamps
-
-### Verification Utility
-
-A comprehensive verification system ensures historical accuracy:
-- **PDX Underground > Test > Verify Lantern Historical Accuracy** - Tests all lamps in scene
-- **PDX Underground > Test > Final 1800s Gas Lamp Verification** - Specialized gas lamp testing
-- **PDX Underground > Test > Verify Gas Lamp Propagation** - Tests shared gas line behavior
-
-The verification utility tests:
-- Color temperature ranges for historical accuracy
-- Proper synchronization behavior between gas lamps
-- Authentic intensity propagation through shared gas lines
-- Combined noise calculation for realistic flickering effects
-
-## Controls and Gameplay Mechanics
-
-### Basic Controls
 - **WASD** - Character movement
 - **Mouse** - Look around (hold right mouse button)
 - **1** - Use Slice ability (melee attack)
@@ -123,66 +47,158 @@ The verification utility tests:
 - **Mouse Scroll** - Zoom camera in/out
 - **ESC** - Exit game/test
 
-### Gameplay Mechanics
+## Historical Lighting System
 
-#### Buzz System
-The Buzz meter represents the Gambler's energy. Using abilities consumes Buzz, which can be regained through critical hits.
+PDX Underground features a historically accurate lighting system that recreates authentic 1800s Portland illumination:
 
-#### Combat Flow
-1. Approach enemies or keep distance based on preferred attack style
-2. Use Slice for close combat or Flick for ranged attacks
-3. Watch for cooldowns on abilities
-4. Manage Buzz levels to ensure you have energy for important attacks
-5. Aim for critical hits to regain Buzz and deal extra damage
+### Lamp Types
 
-## Development Roadmap
+#### Gas Lamps
+- Color temperature range: 1800K-2000K
+- Synchronized flickering between lamps on shared gas lines
+- Occasional pressure drops affecting connected lamps
 
-### Next Features to Implement
+#### Oil Lamps
+- Color temperature range: 1900K-2300K
+- Independent behavior without synchronization
+- Slower, more gentle flickering pattern
 
-1. **Card Deck System**
-   - Create a full deck management system
-   - Allow collecting new cards through gameplay
-   - Implement different card types with varied effects
+#### Candle Lamps
+- Color temperature range: 1700K-1900K
+- Most variable flickering pattern
+- Affected by air movement
+- No synchronization between candle lamps
 
-2. **Enhanced Character Progression**
-   - Add leveling system for the Gambler
-   - Implement skill trees to customize abilities
-   - Create upgrade paths for cards and abilities
+## Setup Instructions
 
-3. **Additional Abilities**
-   - "Fan of Cards" area attack
-   - "Card Trick" ability for temporary buffs
-   - Ultimate ability "Royal Flush"
+### Prerequisites
 
-4. **NPCs and Environment**
-   - Add interactive NPCs with dialogue
-   - Create quest system
-   - Expand environment to include full Portland underground setting
+- Unity 2022.3 LTS or newer
+- Git with LFS support
+- Basic understanding of C# and Unity development
 
-5. **Card Crafting System**
-   - Allow combining cards for stronger effects
-   - Implement card enhancement mechanics
-   - Create rare card collection mechanics
+### Getting Started
 
-### Known Issues/Limitations
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/hawkpdx/PDX_Underground_Unity.git
+   cd PDX_Underground_Unity
+   ```
 
-- Projectile collisions may need refinement
-- Card visual assets need to be created and implemented
-- Animation system needs to be integrated with ability usage
-- UI needs proper styling to match the historical theme
+2. Open the project in Unity:
+   - Launch Unity Hub
+   - Add the project from your local repository folder
+   - Open the project
+
+3. Set up the game scene:
+   - In Unity's top menu, go to **PDX Underground > Setup > Create Main Scene Structure**
+   - This will automatically set up the main scene hierarchy
+
+4. Set up prefabs:
+   - Follow the prefab setup guides in `Assets/Prefabs/Core/Setup_Guides/`
+   - Create the GameController prefab
+   - Create the Player prefab
+   - Create the Gaslight prefabs for different environments
+
+## Development Workflow
+
+We use a Git Flow inspired workflow:
+
+- `main` branch contains stable, production-ready code
+- `develop` branch is the integration branch for ongoing development
+- Feature branches should be created from `develop` for new features
+- Use pull requests to merge changes back to `develop`
+
+### Branching Pattern
+
+```
+feature/feature-name  → develop → main
+bugfix/issue-name     → develop → main
+```
+
+### Commit Message Format
+
+Please use descriptive commit messages with a clear prefix:
+
+- `feat:` for new features
+- `fix:` for bug fixes
+- `docs:` for documentation changes
+- `refactor:` for code refactoring
+- `test:` for adding tests
+- `chore:` for maintenance tasks
+
+## Unity Version Requirements
+
+- Unity 2022.3 LTS or newer
+- Universal Render Pipeline (URP)
+- Required packages:
+  - TextMeshPro
+  - Input System
+  - 2D Sprite
+  - Timeline
+
+## Project Structure
+
+```
+PDX_Underground_Unity/
+├── Assets/
+│   ├── Prefabs/          # Reusable game objects
+│   │   ├── Core/         # Core game systems
+│   │   ├── Player/       # Player components
+│   │   └── Environment/  # Environment elements
+│   ├── Scenes/           # Unity scenes
+│   │   └── Main/         # Main game scene and setup guides
+│   ├── Scripts/          # C# scripts
+│   │   ├── Runtime/      # Game runtime scripts
+│   │   │   ├── Core/     # Core systems
+│   │   │   ├── Player/   # Player behavior
+│   │   │   └── Effects/  # Visual effects
+│   │   ├── Editor/       # Unity editor tools
+│   │   └── Tests/        # Test scripts
+│   ├── Resources/        # Runtime-loaded assets
+│   └── Materials/        # Material assets
+└── Documentation/        # Project documentation
+```
+
+## Scene Setup Guides
+
+The project includes several setup guides to help with scene creation:
+
+- **Main Scene Setup**: See `Assets/Scenes/Main/Scene_Setup_README.md`
+- **GameController Setup**: See `Assets/Prefabs/Core/Setup_Guides/GameController_Setup_Guide.txt`
+- **Player Setup**: See `Assets/Prefabs/Core/Setup_Guides/Player_Setup_Guide.txt`
+- **Gaslight Setup**: See `Assets/Prefabs/Core/Setup_Guides/Gaslight_Setup_Guide.txt`
+
+## Key Scripts
+
+- `MainGameController.cs`: Core game state and systems management
+- `GamblerCharacter.cs`: Player character attributes and state
+- `PlayerController.cs`: Player movement and input handling
+- `GaslightFlicker.cs`: Atmospheric lighting system
 
 ## Contributing
 
-When contributing to the project, please follow these guidelines:
+We welcome contributions to PDX Underground! Please follow these guidelines:
+
 - Use the existing architecture for new abilities and characters
 - Keep the period-appropriate theme in mind for visuals and mechanics
 - Document new systems in code with proper comments
 - Test thoroughly in the test scene before committing changes
+- Create pull requests against the `develop` branch
+- Follow the commit message format described above
 
-## License
+## Game Philosophy
 
-[Include appropriate license information here]
+PDX Underground aims to combine traditional gameplay with strategic thinking and historically-inspired settings. We believe that games can provide an immersive way to explore historical periods while offering engaging gameplay mechanics that challenge players both intellectually and technically.
 
+The concept of a historically-based game with strategy/logic elements as well as humanity-based narrative choices creates an experience that appeals to free-thinking individuals looking for more than standard game formulas.
 
+## Contact Information
 
-one more thing... the concept of a regular, stage-based, rpg-type game while implementing the idea of strategy/logic/as well as, humanity based logic seems as if it might be an additional 'draw' for free-thinking individuals whom wish to seperate from the negativity of our current truths... 
+- **Developer**: hawkpdx
+- **GitHub**: [https://github.com/hawkpdx](https://github.com/hawkpdx)
+- **Email**: hawkPdx@icloud.com
+
+---
+
+*Last updated: April 11, 2025*
