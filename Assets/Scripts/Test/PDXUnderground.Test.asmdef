@@ -1,0 +1,19 @@
+{
+    "name": "PDXUnderground.Test",
+    "rootNamespace": "PDXUnderground.Test",
+    "references": [
+        "PDXUnderground.Core",
+        "PDXUnderground.Models",
+        "PDXUnderground.Systems"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
+

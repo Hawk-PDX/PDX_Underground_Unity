@@ -1,273 +1,114 @@
 using UnityEngine;
-using System.Collections;
-using System.Collections.Generic;
+using System;
+using PDXUnderground.Player;
+using PDXUnderground.UI;
 
 namespace PDXUnderground.Core
 {
-    /// <summary>
-    /// Main controller for the PDX Underground game. Manages game state, environment, and buzz level.
-    /// Provides comprehensive game flow control and cross-cutting concerns management.
-    /// Implemented as a singleton to allow easy access from other scripts.
-    /// </summary>
     public class MainGameController : MonoBehaviour
     {
-        #region Singleton Pattern
-        // Singleton instance
+        #region Singleton
         private static MainGameController _instance;
+        public static MainGameController Instance => _instance;
         
-        // Public accessor for the singleton instance
-        public static MainGameController Instance
-        {
-            get
-            {
-                if (_instance == null)
-                {
-                    _instance = FindObjectOfType<MainGameController>();
-                    
-                    if (_instance == null)
-                    {
-                        Debug.LogWarning("No MainGameController found in scene. Creating a default instance.");
-                        GameObject controllerObject = new GameObject("MainGameController");
-                        _instance = controllerObject.AddComponent<MainGameController>();
-                    }
-                }
-                
-                return _instance;
-            }
-        }
-        
-        // Make sure we don't create duplicate controllers
         private void Awake()
         {
             if (_instance != null && _instance != this)
             {
-                Debug.LogWarning("Duplicate MainGameController found. Destroying the newer one.");
                 Destroy(gameObject);
                 return;
             }
-            
             _instance = this;
             DontDestroyOnLoad(gameObject);
             
-            // Initialize the controller
             InitializeGameSystems();
         }
         #endregion
         
-        #region Properties and References
-        [Header("UI References")]
+        #region References
+        [Header("System References")]
         [SerializeField] private BuzzUIController buzzUIController;
-        
-        [Header("Character References")]
         [SerializeField] private GamblerCharacter playerCharacter;
         #endregion
-
-        #region Game State Management
-        // Combined game state enum with all states from both versions
+        
+        #region Game State
         public enum GameState
         {
             MainMenu,
-            Loading,
             Playing,
             Paused,
-            CardSelection,
-            Dialogue,
-            GameOver,
-            Victory
+            GameOver
         }
-        
-        // Current game state
-        [SerializeField] private GameState _currentState = GameState.MainMenu;
-        
-        // Property to get/set the current game state
-        public GameState CurrentState
-        {
-            get { return _currentState; }
-            set
-            {
-                if (_currentState != value)
-                {
-                    GameState prevState = _currentState;
-                    _currentState = value;
-                    HandleStateTransition(prevState, _currentState);
-                    OnGameStateChanged?.Invoke(prevState, _currentState);
-                }
-            }
-        }
-        
-        // Enhanced game state change event
-        public delegate void GameStateChangedHandler(GameState previousState, GameState newState);
-        public event GameStateChangedHandler OnGameStateChanged;
-        
-        private void HandleStateTransition(GameState previousState, GameState newState)
-        {
-            switch (newState)
-            {
-                case GameState.MainMenu:
-                    Time.timeScale = 1f;
-                    break;
-                    
-                case GameState.Loading:
-                    // Handle loading state
-                    break;
-                    
-                case GameState.Playing:
-                    Time.timeScale = 1f;
-                    if (previousState == GameState.Paused)
-                    {
-                        // Resuming from pause
-                    }
-                    else if (previousState == GameState.MainMenu)
-                    {
-                        // Starting new game
-                        ResetGameState();
-                    }
-                    break;
-                    
-                case GameState.Paused:
-                    Time.timeScale = 0f;
-                    break;
-                    
-                case GameState.CardSelection:
-                    // Handle card selection state
-                    break;
-                    
-                case GameState.Dialogue:
-                    // Handle dialogue state
-                    break;
-                    
-                case GameState.GameOver:
-                    // Handle game over state
-                    break;
-                    
-                case GameState.Victory:
-                    // Handle victory state
-                    break;
-            }
-            
-            Debug.Log($"Game State changed from {previousState} to {newState}");
-        }
-        #endregion
-        
-        #region Environment Management
-        [Header("Environment")]
-        [SerializeField] private int currentEnvironmentIndex = 0;
-        [SerializeField] private string[] environmentTypes = { "Streets", "Tunnels", "Speakeasy" };
         
         public enum Environment
         {
             Streets,
-            Tunnels,
-            Speakeasy
+            Sewers,
+            Club,
+            Arena
         }
         
-        // Current environment
-        [SerializeField] private Environment _currentEnvironment = Environment.Streets;
+        private GameState _currentState = GameState.MainMenu;
+        private Environment _currentEnvironment = Environment.Streets;
         
-        // Property to get/set the current environment
+        public GameState CurrentState
+        {
+            get => _currentState;
+            private set
+            {
+                if (_currentState != value)
+                {
+                    GameState oldState = _currentState;
+                    _currentState = value;
+                    OnGameStateChanged?.Invoke(oldState, _currentState);
+                }
+            }
+        }
+        
         public Environment CurrentEnvironment
         {
-            get { return _currentEnvironment; }
+            get => _currentEnvironment;
             private set
             {
                 if (_currentEnvironment != value)
                 {
-                    Environment prevEnvironment = _currentEnvironment;
+                    Environment oldEnv = _currentEnvironment;
                     _currentEnvironment = value;
-                    OnEnvironmentChanged?.Invoke(prevEnvironment, _currentEnvironment);
-                    
-                    // Notify with additional environment details
-                    string environmentName = environmentTypes[currentEnvironmentIndex];
-                    OnEnvironmentTypeChanged?.Invoke(environmentName, (int)value);
+                    OnEnvironmentChanged?.Invoke(oldEnv, _currentEnvironment);
                 }
             }
         }
         
-        // Events for environment changes
-        public delegate void EnvironmentChangedHandler(Environment previousEnvironment, Environment newEnvironment);
-        public event EnvironmentChangedHandler OnEnvironmentChanged;
-        
-        public delegate void EnvironmentTypeChangedHandler(string environmentName, int environmentIndex);
-        public event EnvironmentTypeChangedHandler OnEnvironmentTypeChanged;
-        
-        /// <summary>
-        /// Changes the current environment and notifies all relevant systems
-        /// </summary>
-        public void ChangeEnvironment(int environmentIndex)
-        {
-            if (environmentIndex < 0 || environmentIndex >= environmentTypes.Length)
-            {
-                Debug.LogError($"Invalid environment index: {environmentIndex}");
-                return;
-            }
-            
-            currentEnvironmentIndex = environmentIndex;
-            CurrentEnvironment = (Environment)environmentIndex;
-            
-            // Update UI
-            if (buzzUIController != null)
-            {
-                Debug.Log($"Updated UI visuals to {environmentTypes[environmentIndex]} theme");
-            }
-            
-            // Apply environment effects to player
-            if (playerCharacter != null)
-            {
-                ApplyEnvironmentEffects();
-            }
-        }
-        
-        private void ApplyEnvironmentEffects()
-        {
-            switch (CurrentEnvironment)
-            {
-                case Environment.Streets:
-                    // Normal gameplay
-                    break;
-                case Environment.Tunnels:
-                    // Buzz drains more slowly
-                    break;
-                case Environment.Speakeasy:
-                    // Card abilities are enhanced
-                    break;
-            }
-        }
+        // Events for state changes
+        public event Action<GameState, GameState> OnGameStateChanged;
+        public event Action<Environment, Environment> OnEnvironmentChanged;
         #endregion
         
-        #region Buzz Management
-        // Buzz level (0-100)
-        [SerializeField] [Range(0f, 100f)] private float _buzzLevel = 0f;
+        #region Buzz System
+        private float _buzzLevel = 0f;
+        private float _criticalBuzzLevel = 80f;
         
-        // Critical buzz level threshold
-        [SerializeField] [Range(0f, 100f)] private float _criticalBuzzLevel = 30f;
-        
-        // Property to get/set the buzz level
         public float BuzzLevel
         {
-            get { return _buzzLevel; }
-            set
+            get => _buzzLevel;
+            private set
             {
-                float prevValue = _buzzLevel;
+                float oldValue = _buzzLevel;
                 _buzzLevel = Mathf.Clamp(value, 0f, 100f);
                 
-                if (_buzzLevel != prevValue)
+                if (!Mathf.Approximately(oldValue, _buzzLevel))
                 {
-                    OnBuzzLevelChanged?.Invoke(prevValue, _buzzLevel);
+                    OnBuzzLevelChanged?.Invoke(oldValue, _buzzLevel);
                     
-                    // Check for critical buzz level
-                    if (prevValue > _criticalBuzzLevel && _buzzLevel <= _criticalBuzzLevel)
-                    {
-                        OnExitCriticalBuzz?.Invoke();
-                    }
-                    else if (prevValue <= _criticalBuzzLevel && _buzzLevel > _criticalBuzzLevel)
-                    {
+                    // Check for critical state changes
+                    if (oldValue <= _criticalBuzzLevel && _buzzLevel > _criticalBuzzLevel)
                         OnEnterCriticalBuzz?.Invoke();
-                    }
+                    else if (oldValue > _criticalBuzzLevel && _buzzLevel <= _criticalBuzzLevel)
+                        OnExitCriticalBuzz?.Invoke();
                 }
             }
         }
         
-        // Property to check if buzz level is critical
         public bool IsBuzzCritical => _buzzLevel > _criticalBuzzLevel;
         
         // Events for buzz level changes

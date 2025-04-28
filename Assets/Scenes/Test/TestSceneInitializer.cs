@@ -43,7 +43,7 @@ namespace PDXUnderground.Test
         private float currentBuzzLevel;
         private string currentEnvironment;
         
-        protected new void Awake()
+        private void Awake()
         {
             // Call base class Awake
             base.Awake();
@@ -52,7 +52,7 @@ namespace PDXUnderground.Test
             timeLeft = updateInterval;
         }
         
-        protected new void Start()
+        private void Start()
         {
             // If auto setup is enabled, don't call base Start
             // because we'll handle initialization manually
@@ -84,7 +84,7 @@ namespace PDXUnderground.Test
             }
         }
         
-        protected new void Update()
+        private void Update()
         {
             // Process debug info updates
             if (enableDebugUI)

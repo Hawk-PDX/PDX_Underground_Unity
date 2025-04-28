@@ -1,459 +1,237 @@
 using System;
-using System.Collections.Generic;
-using UnityEngine;
+using PDXUnderground.Models;
 
 namespace PDXUnderground.Models
 {
     /// <summary>
-    /// Base Item class representing game items.
-    /// Maps to the 'items' table in the database.
-    /// 
-    /// Migration notes from Python:
-    /// - Converted Python dictionary-based items to proper C# class hierarchy
-    /// - Added serialization attributes for Unity Inspector
-    /// - Implemented inheritance for specialized item types
+    /// Represents an item in the game that can be collected, used, equipped, or traded.
     /// </summary>
     [Serializable]
-    public class Item : MonoBehaviour
+    public class Item
     {
-        #region Database Fields
-        
-        // Database primary key
-        [HideInInspector]
-        public int Id;
-        
-        #endregion
-    }
-}
-            public string StatType;
-            
-            [Tooltip("Amount to modify the stat")]
-            public int Value;
-            
-            [Tooltip("Is this a percentage boost?")]
-            public bool IsPercentage;
-        }
-        
-        [Header("Stat Bonuses")]
-        [Tooltip("Stat bonuses provided when equipped")]
-        public List<StatBonus> StatBonuses = new List<StatBonus>();
-        
-        #endregion
-        
-        #region Unity Lifecycle
-        
-        protected virtual void Awake()
-        {
-            // Initialize durability if not set
-            if (HasDurability && CurrentDurability <= 0)
-            {
-                CurrentDurability = MaxDurability;
-            }
-        }
-        
-        #endregion
-        
-        #region Item Functionality
+        #region Basic Properties
+        /// <summary>
+        /// Unique identifier for the item instance.
+        /// </summary>
+        public int Id { get; set; }
         
         /// <summary>
-        /// Use the item (to be overridden by derived classes)
+        /// Name of the item.
         /// </summary>
-        /// <param name="character">Character using the item</param>
-        /// <returns>True if item was used successfully</returns>
-        public virtual bool Use(Character character)
-        {
-            if (character == null || IsBroken)
-                return false;
-                
-            // Base items are not directly usable unless they're consumable
-            if (IsConsumable)
-            {
-                // Trigger the item used event
-                OnItemUsed?.Invoke(this);
-                
-                // Reduce quantity
-                Quantity--;
-                
-                return true;
-            }
-            
-            Debug.Log($"{ItemName} cannot be used directly");
-            return false;
-        }
-        
-        /// <summary>
-        /// Equip the item (to be overridden by derived classes)
-        /// </summary>
-        /// <param name="character">Character equipping the item</param>
-        /// <returns>True if item was equipped successfully</returns>
-        public virtual bool Equip(Character character)
-        {
-            if (character == null || !IsEquippable || IsBroken)
-                return false;
-                
-            // Check level requirement
-            if (character.Level < RequiredLevel)
-            {
-                Debug.Log($"{character.CharacterName} is not high enough level to equip {ItemName}");
-                return false;
-            }
-            
-            // Apply stat bonuses
-            if (character.Stats != null)
-            {
-                character.Stats.ApplyItemStatBonuses(this);
-            }
-            
-            // Mark as equipped
-            Equipped = true;
-            Debug.Log($"{character.CharacterName} equipped {ItemName}");
-            
-            return true;
-        }
-        
-        /// <summary>
-        /// Unequip the item
-        /// </summary>
-        /// <param name="character">Character unequipping the item</param>
-        /// <returns>True if item was unequipped successfully</returns>
-        public virtual bool Unequip(Character character)
-        {
-            if (character == null || !Equipped)
-                return false;
-                
-            // Remove stat bonuses
-            if (character.Stats != null)
-            {
-                character.Stats.RemoveItemStatBonuses(this);
-            }
-            
-            // Mark as unequipped
-            Equipped = false;
-            Debug.Log($"{character.CharacterName} unequipped {ItemName}");
-            
-            return true;
-        }
-        
-        /// <summary>
-        /// Reduce item durability
-        /// </summary>
-        /// <param name="amount">Amount to reduce</param>
-        /// <returns>True if item is now broken</returns>
-        public bool ReduceDurability(int amount)
-        {
-            if (!HasDurability)
-                return false;
-                
-            CurrentDurability -= amount;
-            
-            if (CurrentDurability <= 0)
-            {
-                Debug.Log($"{ItemName} has broken!");
-                return true;
-            }
-            
-            return false;
-        }
-        
-        /// <summary>
-        /// Repair item to full durability
-        /// </summary>
-        /// <returns>Amount of durability restored</returns>
-        public int Repair()
-        {
-            if (!HasDurability)
-                return 0;
-                
-            int amountRestored = MaxDurability - CurrentDurability;
-            CurrentDurability = MaxDurability;
-            
-            Debug.Log($"{ItemName} has been repaired for {amountRestored} durability points");
-            return amountRestored;
-        }
-        
-        #endregion
-        
-        #region Rarity Functions
-        
-        /// <summary>
-        /// Get a multiplier for item value based on rarity
-        /// </summary>
-        /// <returns>Value multiplier</returns>
-        public float GetRarityValueMultiplier()
-        {
-            switch (Rarity.ToLower())
-            {
-                case "common": return 1.0f;
-                case "uncommon": return 2.0f;
-                case "rare": return 4.0f;
-                case "epic": return 8.0f;
-                case "legendary": return 16.0f;
-                default: return 1.0f;
-            }
-        }
-        
-        /// <summary>
-        /// Get the color associated with the item's rarity
-        /// </summary>
-        /// <returns>Color for the item rarity</returns>
-        public Color GetRarityColor()
-        {
-            switch (Rarity.ToLower())
-            {
-                case "common": return Color.white;
-                case "uncommon": return Color.green;
-                case "rare": return Color.blue;
-                case "epic": return new Color(0.5f, 0f, 0.5f);  // Purple
-                case "legendary": return Color.yellow;
-                default: return Color.white;
-            }
-        }
-        
-        /// <summary>
-        /// Get a rarity tier as an integer
-        /// </summary>
-        /// <returns>Rarity tier (1-5)</returns>
-        public int GetRarityTier()
-        {
-            switch (Rarity.ToLower())
-            {
-                case "common": return 1;
-                case "uncommon": return 2;
-                case "rare": return 3;
-                case "epic": return 4;
-                case "legendary": return 5;
-                default: return 1;
-            }
-        }
-        
-        #endregion
-        
-        #region Persistence
-        
-        /// <summary>
-        /// Save item data to player prefs
-        /// </summary>
-        /// <param name="slotId">Inventory slot ID</param>
-        public void SaveToPlayerPrefs(string slotId)
-        {
-            string saveKey = $"Item_{slotId}";
-            
-            // Create save data dictionary
-            var saveData = new Dictionary<string, object>
-            {
-                {"Id", Id},
-                {"ItemName", ItemName},
-                {"Quantity", Quantity},
-                {"Equipped", Equipped},
-                {"CurrentDurability", CurrentDurability},
-                {"ItemType", ItemType},
-                {"Rarity", Rarity}
-            };
-            
-            // Convert to JSON and save
-            string jsonData = JsonUtility.ToJson(saveData);
-            PlayerPrefs.SetString(saveKey, jsonData);
-            PlayerPrefs.Save();
-            
-            Debug.Log($"Saved item {ItemName} to slot {slotId}");
-        }
-        
-        /// <summary>
-        /// Save item to database
-        /// </summary>
-        public void SaveToDatabase()
-        {
-            // Placeholder for database functionality
-            Debug.Log("SaveToDatabase: This will be implemented with SQLite integration");
-            
-            // Example implementation:
-            // DatabaseManager.Instance.SaveItem(Id, ItemName, Description, ItemType, 
-            //     Rarity, BaseValue, RequiredLevel, Stackable, MaxStackSize, etc.);
-        }
-        
-        #endregion
-        
-        #region Factory Methods
-        
-        /// <summary>
-        /// Create a new item from template data
-        /// </summary>
-        /// <param name="templateId">Template ID from database</param>
-        /// <returns>New item instance</returns>
-        public static Item CreateFromTemplate(int templateId)
-        {
-            // This would normally load from database
-            Debug.Log($"CreateFromTemplate: This will load template {templateId} from database");
-            
-            // Example implementation:
-            // var template = DatabaseManager.Instance.GetItemTemplate(templateId);
-            // if (template != null) {
-            //    var item = new Item();
-            //    // Copy template properties...
-            //    return item;
-            // }
-            return null;
-        }
-        
-        /// <summary>
-        /// Generate a random item with specified parameters
-        /// </summary>
-        /// <param name="minLevel">Minimum item level</param>
-        /// <param name="maxLevel">Maximum item level</param>
-        /// <param name="itemType">Specific item type or null for random</param>
-        /// <param name="rarityChances">Probability distribution for rarities</param>
-        /// <returns>Randomly generated item</returns>
-        public static Item GenerateRandomItem(int minLevel, int maxLevel, string itemType = null, float[] rarityChances = null)
-        {
-            // This is a placeholder for a random item generator
-            Debug.Log($"GenerateRandomItem: Would generate random item level {minLevel}-{maxLevel}");
-            
-            // In a full implementation, this would:
-            // 1. Select random item type if not specified
-            // 2. Roll for rarity based on rarityChances
-            // 3. Select random base stats appropriate for level and type
-            // 4. Generate appropriate modifiers based on rarity
-            return null;
-        }
-        
-        #endregion
-    }
-}
+        public string ItemName { get; set; }
 
-using System;
-using UnityEngine;
+        /// <summary>
+        /// Description of the item.
+        /// </summary>
+        public string Description { get; set; }
 
-namespace PDXUnderground.Models
-{
-    /// <summary>
-    /// Base Item class representing game items.
-    /// Maps to the 'items' table in the database.
-    /// 
-    /// Migration notes from Python:
-    /// - Converted Python dictionary-based items to proper C# class hierarchy
-    /// - Added serialization attributes for Unity Inspector
-    /// - Implemented inheritance for specialized item types
-    /// </summary>
-    [Serializable]
-    public class Item : MonoBehaviour
-    {
-        // Database primary key
-        [HideInInspector]
-        public int Id;
-        
-        // Basic item information
-        [Header("Basic Information")]
-        public string ItemName;
-        [TextArea(3, 5)]
-        public string Description;
-        
-        // Item classification
-        [Header("Classification")]
-        [Tooltip("weapon, armor, consumable, quest, misc")]
-        public string ItemType;
-        [Tooltip("common, uncommon, rare, epic, legendary")]
-        public string Rarity;
-        
-        // Item attributes
-        [Header("Attributes")]
-        [Tooltip("Base value in game currency")]
-        public int BaseValue;
-        [Tooltip("Minimum level required to use this item")]
-        public int RequiredLevel = 1;
-        [Tooltip("Whether multiple items can stack in one inventory slot")]
-        public bool Stackable = false;
-        [Tooltip("Maximum number of items in a stack (if stackable)")]
-        public int MaxStackSize = 1;
-        
-        // Visual representation
-        [Header("Visual Representation")]
-        [Tooltip("Path to item icon for UI")]
-        public string IconPath;
-        [Tooltip("Path to 3D model (if applicable)")]
-        public string ModelPath;
-        
-        // Hidden attributes for specialized items
-        [HideInInspector] public string WeaponType;  // For weapons
-        [HideInInspector] public string ArmorType;   // For armor
-        
-        // Current state (not saved to database)
-        [NonSerialized] private int _quantity = 1;
-        [NonSerialized] private bool _equipped = false;
-        [NonSerialized] private int _currentDurability;
-        [NonSerialized] private int _maxDurability;
-        
-        // Public accessors with range constraints
-        public int Quantity 
-        { 
-            get => _quantity;
-            set => _quantity = Mathf.Clamp(value, 0, Stackable ? MaxStackSize : 1);
-        }
-        
-        public bool Equipped
-        {
-            get => _equipped;
-            set => _equipped = value;
-        }
-        
-        public int CurrentDurability
-        {
-            get => _currentDurability;
-            set => _currentDurability = Mathf.Clamp(value, 0, MaxDurability);
-        }
-        
-        public int MaxDurability
-        {
-            get => _maxDurability;
-            set => _maxDurability = value;
-        }
-        
-        // Calculated properties
-        public bool HasDurability => MaxDurability > 0;
-        public float DurabilityPercentage => HasDurability ? (float)CurrentDurability / MaxDurability : 1f;
+        /// <summary>
+        /// Type of item (weapon, armor, consumable, etc.).
+        /// </summary>
+        public string ItemType { get; set; }
+
+        /// <summary>
+        /// Rarity level of the item.
+        /// </summary>
+        public string Rarity { get; set; }
+
+        /// <summary>
+        /// Base value of the item in game currency.
+        /// </summary>
+        public int Value { get; set; }
+
+        /// <summary>
+        /// Weight of the item affecting inventory capacity.
+        /// </summary>
+        public float Weight { get; set; }
+
+        /// <summary>
+        /// Minimum character level required to use this item.
+        /// </summary>
+        public int RequiredLevel { get; set; }
+        #endregion
+
+        #region Stack Properties
+        /// <summary>
+        /// Determines if multiple instances of this item can be stacked in a single inventory slot.
+        /// </summary>
+        public bool IsStackable { get; set; }
+
+        /// <summary>
+        /// Maximum number of items that can be stacked together if stackable.
+        /// </summary>
+        public int MaxStackSize { get; set; }
+
+        /// <summary>
+        /// Current number of items in this stack.
+        /// </summary>
+        public int Quantity { get; set; }
+        #endregion
+
+        #region Durability Properties
+        /// <summary>
+        /// Determines if this item can be damaged or degraded with use.
+        /// </summary>
+        public bool HasDurability { get; set; }
+
+        /// <summary>
+        /// Maximum durability value when the item is in perfect condition.
+        /// </summary>
+        public int MaxDurability { get; set; }
+
+        /// <summary>
+        /// Current durability value of the item.
+        /// </summary>
+        public int CurrentDurability { get; set; }
+
+        /// <summary>
+        /// Indicates if the item is broken and cannot be used until repaired.
+        /// </summary>
         public bool IsBroken => HasDurability && CurrentDurability <= 0;
-        public int SellValue => Mathf.RoundToInt(BaseValue * GetRarityValueMultiplier() * DurabilityPercentage);
-        public Color RarityColor => GetRarityColor();
-        
-        #region Unity Lifecycle
-        
-        protected virtual void Awake()
-        {
-            // Initialize durability if not set
-            if (HasDurability && CurrentDurability <= 0)
-            {
-                CurrentDurability = MaxDurability;
-            }
-        }
-        
         #endregion
-        
-        #region Item Functionality
-        
-        /// <summary>
-        /// Use the item (to be overridden by derived classes)
-        /// </summary>
-        /// <param name="character">Character using the item</param>
-        /// <returns>True if item was used successfully</returns>
-        public virtual bool Use(Character character)
-        {
-            // Base items are not directly usable
-            Debug.Log($"{ItemName} cannot be used directly");
-            return false;
-        }
-        
-        /// <summary>
-        /// Equip the item (to be overridden by derived classes)
-        /// </summary>
-        /// <param name="character">Character equipping the item</param>
-        /// <returns>True if item was equipped successfully</returns>
-        public virtual bool Equip(Character character)
-        {
-            if (character.CanEquipItem(this))
-            {
-                Equipped = true;
-                return true;
-            }
-            
-            Debug.Log($"{character.CharacterName} cannot equip {ItemName}");
-            
 
+        #region Equipment Properties
+        /// <summary>
+        /// Determines if this item can be equipped by a character.
+        /// </summary>
+        public bool IsEquippable { get; set; }
+
+        /// <summary>
+        /// Indicates if this item is currently equipped by a character.
+        /// </summary>
+        public bool Equipped { get; set; }
+
+        /// <summary>
+        /// The equipment slot this item occupies when equipped (head, chest, weapon, etc.).
+        /// </summary>
+        public string SlotType { get; set; }
+
+        /// <summary>
+        /// Specific weapon category if this is a weapon (sword, axe, bow, etc.).
+        /// </summary>
+        public string WeaponType { get; set; }
+
+        /// <summary>
+        /// Armor weight class if this is armor (light, medium, heavy).
+        /// </summary>
+        public string ArmorType { get; set; }
+        #endregion
+
+        #region Consumable Properties
+        /// <summary>
+        /// Determines if this item can be consumed for an effect.
+        /// </summary>
+        public bool IsConsumable { get; set; }
+
+        /// <summary>
+        /// Determines if this consumable item can be used multiple times.
+        /// </summary>
+        public bool IsReusable { get; set; }
+
+        /// <summary>
+        /// Cooldown time in seconds between uses if reusable.
+        /// </summary>
+        public float Cooldown { get; set; }
+        #endregion
+
+        #region Item Usage Methods
+        /// <summary>
+        /// Base method for using an item. Should be overridden by specific item types.
+        /// </summary>
+        /// <param name="character">The character using the item</param>
+        /// <param name="currentTime">Current game time for cooldown calculations</param>
+        /// <returns>True if item was successfully used, false otherwise</returns>
+        public virtual bool Use(CharacterData character, float currentTime)
+        {
+            if (IsBroken || character == null)
+                return false;
+
+            if (character.Level < RequiredLevel)
+                return false;
+
+            if (IsConsumable && Quantity <= 0)
+                return false;
+
+            return true;
+        }
+
+        /// <summary>
+        /// Called when this item is equipped by a character.
+        /// Base implementation does nothing - should be overridden by specific item types.
+        /// </summary>
+        /// <param name="character">The character equipping the item</param>
+        public virtual void OnEquip(CharacterData character)
+        {
+            // Base implementation does nothing
+        }
+
+        /// <summary>
+        /// Called when this item is unequipped by a character.
+        /// Base implementation does nothing - should be overridden by specific item types.
+        /// </summary>
+        /// <param name="character">The character unequipping the item</param>
+        public virtual void OnUnequip(CharacterData character)
+        {
+            // Base implementation does nothing
+        }
+        #endregion
+
+        #region Item Creation Methods
+        /// <summary>
+        /// Creates a new copy of this item with reset equipped state and quantity.
+        /// </summary>
+        /// <returns>A new Item instance that is a copy of this item</returns>
+        public virtual Item CreateCopy()
+        {
+            var copy = (Item)MemberwiseClone();
+            copy.Equipped = false;
+            copy.Quantity = 1;
+            return copy;
+        }
+
+        /// <summary>
+        /// Creates a new item instance from an item template.
+        /// </summary>
+        /// <param name="template">The template containing base item properties</param>
+        /// <returns>A new Item instance based on the template, or null if template is null</returns>
+        public static Item CreateFromTemplate(ItemTemplate template)
+        {
+            if (template == null)
+                return null;
+
+            // Validate essential template properties
+            if (string.IsNullOrEmpty(template.ItemName))
+                throw new ArgumentException("ItemTemplate must have a valid ItemName");
+
+            if (string.IsNullOrEmpty(template.ItemType))
+                throw new ArgumentException("ItemTemplate must have a valid ItemType");
+
+            var item = new Item
+            {
+                ItemName = template.ItemName,
+                Description = template.Description ?? string.Empty,
+                ItemType = template.ItemType,
+                Rarity = template.Rarity ?? "Common",
+                Value = Math.Max(0, template.Value),
+                Weight = Math.Max(0, template.Weight),
+                RequiredLevel = Math.Max(0, template.RequiredLevel),
+                IsStackable = template.IsStackable,
+                MaxStackSize = Math.Max(1, template.MaxStackSize),
+                Quantity = 1,
+                HasDurability = template.HasDurability,
+                MaxDurability = template.HasDurability ? Math.Max(1, template.MaxDurability) : 0,
+                CurrentDurability = template.HasDurability ? Math.Max(1, template.MaxDurability) : 0,
+                IsEquippable = template.IsEquippable,
+                SlotType = template.IsEquippable ? (template.SlotType ?? string.Empty) : string.Empty,
+                WeaponType = template.IsEquippable ? (template.WeaponType ?? string.Empty) : string.Empty,
+                ArmorType = template.IsEquippable ? (template.ArmorType ?? string.Empty) : string.Empty,
+                IsConsumable = template.IsConsumable,
+                IsReusable = template.IsConsumable && template.IsReusable,
+                Cooldown = template.IsConsumable ? Math.Max(0, template.Cooldown) : 0
+            };
+
+            return item;
+        }
+        #endregion
+    }
+}

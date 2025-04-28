@@ -437,51 +437,6 @@ namespace PDXUnderground.UI
         }
         #endregion
         
-        #if UNITY_EDITOR
-        /// <summary>
-        /// Static class containing editor menu items for easy prefab creation.
-        /// </summary>
-        [UnityEditor.MenuItem("PDX Underground/Create UI Prefabs/Card Prefab")]
-        private static void CreateCardPrefabMenuItem()
-        {
-            // Create a temporary GameObject with the GamblerUISetup component
-            GameObject tempObj = new GameObject("TempGamblerUISetup");
-            GamblerUISetup setup = tempObj.AddComponent<GamblerUISetup>();
-            
-            // Create the card prefab
-            setup.CreateCardPrefab();
-            
-            // Clean up
-            DestroyImmediate(tempObj);
-        }
-        
-        [UnityEditor.MenuItem("PDX Underground/Create UI Prefabs/Gambler UI Canvas")]
-        private static void CreateGamblerUICanvasMenuItem()
-        {
-            // Create a temporary GameObject with the GamblerUISetup component
-            GameObject tempObj = new GameObject("TempGamblerUISetup");
-            GamblerUISetup setup = tempObj.AddComponent<GamblerUISetup>();
-            
-            // Create the UI canvas
-            setup.CreateGamblerUICanvas();
-            
-            // Clean up
-            DestroyImmediate(tempObj);
-        }
-        
-        [UnityEditor.MenuItem("PDX Underground/Create UI Prefabs/All Prefabs")]
-        private static void CreateAllPrefabsMenuItem()
-        {
-            // Create a temporary GameObject with the GamblerUISetup component
-            GameObject tempObj = new GameObject("TempGamblerUISetup");
-            GamblerUISetup setup = tempObj.AddComponent<GamblerUISetup>();
-            
-            // Create all prefabs
-            setup.CreateAllPrefabs();
-            
-            // Clean up
-            DestroyImmediate(tempObj);
-        }
-        #endif
+    // Editor menu items moved to Assets/Scripts/UI/Editor/GamblerUIEditorTools.cs
     }
 }

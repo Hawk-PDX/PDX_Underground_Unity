@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.SceneManagement;
+using PDXUnderground.Core;
+using PDXUnderground.Effects;
+using PDXUnderground.AI.Enemies;
 
 namespace PDXUnderground.Interaction
 {
@@ -35,7 +38,6 @@ namespace PDXUnderground.Interaction
         [SerializeField] private GameObject debrisPrefab;
         [SerializeField] private Material dampWallMaterial;
         [SerializeField] private Material woodenBeamMaterial;
-        [SerializeField] private float ambientTemperature = 12f; // Celsius
 
         [Header("Lighting")]
         [SerializeField] private Color lanternColor = new Color(1.0f, 0.7f, 0.3f);
@@ -60,10 +62,19 @@ namespace PDXUnderground.Interaction
         [Header("Level Progression")]
         [SerializeField] private List<Checkpoint> checkpoints = new List<Checkpoint>();
         [SerializeField] private string nextLevelName;
+        
+        /// <summary>
+        /// When true, all collectibles must be found to complete the level.
+        /// Used in CheckLevelCompletion to determine completion criteria.
+        /// </summary>
         [SerializeField] private bool requireAllCollectibles = true;
         [SerializeField] private Transform levelEndPoint;
+        
+        /// <summary>
+        /// Delay in seconds before transitioning to the next level after completion.
+        /// Used in LoadNextLevelAfterDelay when player completes the level.
+        /// </summary>
         [SerializeField] private float levelTransitionDelay = 1.5f;
-
         [Header("Events")]
         public UnityEvent OnTunnelEntered;
         public UnityEvent OnTunnelExited;
@@ -84,10 +95,21 @@ namespace PDXUnderground.Interaction
         private Checkpoint currentCheckpoint;
         private int currentSegmentIndex = 0;
         private bool playerInTunnels = false;
+        
+        /// <summary>
+        /// Tracks whether all required collectibles have been found.
+        /// Set to true in RegisterCollectedItem when requiredCollectiblesFound reaches requiredCollectiblesCount.
+        /// </summary>
         private bool allCollectiblesFound = false;
+        
+        /// <summary>
+        /// Tracks whether the level has been completed.
+        /// Set to true in CompleteLevel method and prevents multiple completion triggers.
+        /// </summary>
         private bool levelCompleted = false;
         private Coroutine ratSpawningCoroutine;
         private Coroutine ambientSoundCoroutine;
+        private int requiredCollectiblesFound = 0;
         private Dictionary<HiddenPathway, bool> discoveredPathways = new Dictionary<HiddenPathway, bool>();
         private Dictionary<TunnelEntrance, bool> unlockedEntrances = new Dictionary<TunnelEntrance, bool>();
         private Dictionary<TunnelExit, bool> unlockedExits = new Dictionary<TunnelExit, bool>();
@@ -179,11 +201,36 @@ namespace PDXUnderground.Interaction
             if (ratSpawningCoroutine != null)
             {
                 StopCoroutine(ratSpawningCoroutine);
+                ratSpawningCoroutine = null;
             }
             
             if (ambientSoundCoroutine != null)
             {
                 StopCoroutine(ambientSoundCoroutine);
+                ambientSoundCoroutine = null;
+            }
+            
+            // Clean up spawned rats
+            foreach (GameObject rat in spawnedRats)
+            {
+                if (rat != null)
+                {
+                    Destroy(rat);
+                }
+            }
+            spawnedRats.Clear();
+            
+            // Clean up audio
+            if (ambientAudioSource != null)
+            {
+                ambientAudioSource.Stop();
+                ambientAudioSource = null;
+            }
+            
+            if (effectsAudioSource != null)
+            {
+                effectsAudioSource.Stop();
+                effectsAudioSource = null;
             }
         }
 
@@ -393,7 +440,6 @@ namespace PDXUnderground.Interaction
         private void SetupEnvironment()
         {
             // Setup lanterns
-            // Setup lanterns
             foreach (GameObject lantern in lanterns)
             {
                 if (lantern != null)
@@ -413,11 +459,14 @@ namespace PDXUnderground.Interaction
                     lanternLight.shadows = LightShadows.Soft;
                     
                     // Add flickering effect
-                    LanternFlicker flicker = lantern.AddComponent<LanternFlicker>();
-                    flicker.minIntensity = 0.8f;
-                    flicker.maxIntensity = 1.2f;
-                    flicker.flickerSpeed = 0.08f;
-                    flicker.colorVariation = 0.1f;
+                    PDXUnderground.Effects.LanternFlicker flicker = lantern.GetComponent<PDXUnderground.Effects.LanternFlicker>() ?? 
+                        lantern.AddComponent<PDXUnderground.Effects.LanternFlicker>();
+                    // Set properties using the proper names from our implementation
+                    flicker.flickerIntensity = 0.2f;  // Controls the intensity of the flicker
+                    flicker.flickerSpeed = 1.5f;     // Controls how fast the light flickers
+                    flicker.flickerVariation = 0.4f; // Controls variation in flicker rhythm
+                    flicker.dayIntensity = 0.4f;     // Base intensity during daytime
+                    flicker.nightIntensity = 0.9f;   // Base intensity during nighttime
                 }
             }
             
@@ -616,11 +665,27 @@ namespace PDXUnderground.Interaction
                                 spawnedRats.Add(rat);
                                 
                                 // Add AI navigation to run away from player
-                                RatBehavior ratBehavior = rat.AddComponent<RatBehavior>();
-                                ratBehavior.scurrySpeed = Random.Range(1.5f, 3f);
-                                ratBehavior.fleeDistance = Random.Range(4f, 8f);
-                                ratBehavior.squeakSound = ratSquealSound;
+                                // Add AI navigation and behavior
+                                RatBehavior ratBehavior = rat.GetComponent<RatBehavior>() ?? rat.AddComponent<RatBehavior>();
                                 
+                                // Set properties using the proper names from our implementation
+                                ratBehavior.patrolSpeed = Random.Range(1.0f, 2.0f);
+                                ratBehavior.chaseSpeed = Random.Range(2.5f, 3.5f);
+                                ratBehavior.retreatSpeed = Random.Range(3.0f, 4.0f);
+                                ratBehavior.detectionRange = Random.Range(6.0f, 10.0f);
+                                
+                                // Add sound effects if available
+                                if (ratSquealSound != null)
+                                {
+                                    // Add AudioSource directly instead of using reflection
+                                    AudioSource ratAudio = rat.GetComponent<AudioSource>() ?? rat.AddComponent<AudioSource>();
+                                    ratAudio.clip = ratSquealSound;
+                                    ratAudio.spatialBlend = 1.0f;  // Full 3D sound
+                                    ratAudio.minDistance = 1.0f;
+                                    ratAudio.maxDistance = 15.0f;
+                                    ratAudio.playOnAwake = false;
+                                    ratAudio.volume = 0.6f;  // Set reasonable volume
+                                }
                                 // Destroy rat after random lifetime
                                 StartCoroutine(DestroyRatAfterTime(rat, Random.Range(20f, 40f)));
                             }
@@ -686,3 +751,140 @@ namespace PDXUnderground.Interaction
                             
                             // Play the sound at that position
                             AudioSource.PlayClipAtPoint(randomSound, soundPosition, 0.6f);
+                        }
+                    }
+                }
+            }
+        }
+        #endregion // Environmental Features
+
+        #region Collectible Management
+
+        /// <summary>
+        /// Register a collected item when player picks it up.
+        /// This method is called by CollectibleItem instances when they are collected.
+        /// It increments the requiredCollectiblesFound counter and checks if all required
+        /// collectibles have been found, updating allCollectiblesFound when the requirement is met.
+        /// </summary>
+        /// <param name="item">The collectible item that was picked up</param>
+        public void RegisterCollectedItem(CollectibleItem item)
+        {
+            if (item == null || collectedItems.Contains(item))
+                return;
+
+            // Add the item to the collection
+            collectedItems.Add(item);
+            requiredCollectiblesFound++;
+
+            // Trigger event
+            OnCollectibleFound?.Invoke();
+
+            Debug.Log($"Collected item: {item.ItemName}");
+
+            // Check if all required collectibles are found
+            if (requiredCollectiblesFound >= requiredCollectiblesCount && !allCollectiblesFound)
+            {
+                allCollectiblesFound = true;
+                OnAllCollectiblesFound?.Invoke();
+                Debug.Log("All required collectibles found!");
+
+                // If level completion requires all collectibles, check for level completion
+                if (requireAllCollectibles)
+                {
+                    CheckLevelCompletion();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Check if level completion criteria are met.
+        /// This method evaluates whether the conditions for level completion are satisfied,
+        /// which may depend on the requireAllCollectibles flag and allCollectiblesFound state.
+        /// When conditions are met, the player simply needs to reach the level end point.
+        /// </summary>
+        private void CheckLevelCompletion()
+        {
+            // Basic implementation - can be expanded
+            if ((requireAllCollectibles && allCollectiblesFound) || !requireAllCollectibles)
+            {
+                // Level is completed when player reaches the end point
+                // This is typically triggered by a collider at the level end
+                if (!levelCompleted)
+                {
+                    Debug.Log("Level completion criteria met - reach end point to finish level");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Complete the level and transition to next level.
+        /// Sets levelCompleted flag to true, triggers OnLevelComplete event,
+        /// and loads the next level after the specified delay when nextLevelName is set.
+        /// </summary>
+        public void CompleteLevel()
+        {
+            if (levelCompleted)
+                return;
+
+            levelCompleted = true;
+            OnLevelComplete?.Invoke();
+
+            Debug.Log("Level completed!");
+
+            // Load next level after delay
+            if (!string.IsNullOrEmpty(nextLevelName))
+            {
+                StartCoroutine(LoadNextLevelAfterDelay(levelTransitionDelay));
+            }
+        }
+
+        /// <summary>
+        /// Load the next level after delay
+        /// </summary>
+        private IEnumerator LoadNextLevelAfterDelay(float delay)
+        {
+            yield return new WaitForSeconds(delay);
+            UnityEngine.SceneManagement.SceneManager.LoadScene(nextLevelName);
+        }
+
+        #endregion
+
+    }
+    
+    /// <summary>
+    /// Represents an entrance to the Shanghai Tunnels
+    /// </summary>
+    [System.Serializable]
+    public class TunnelEntrance
+    {
+        public string entranceID;
+        public GameObject entranceObject;
+        public bool startUnlocked = false;
+        public GameObject unlockEffect;
+        public AudioClip unlockSound;
+    }
+    
+    /// <summary>
+    /// Represents an exit from the Shanghai Tunnels
+    /// </summary>
+    [System.Serializable]
+    public class TunnelExit
+    {
+        public string exitID;
+        public GameObject exitObject;
+        public bool startUnlocked = false;
+        public GameObject unlockEffect;
+        public AudioClip unlockSound;
+    }
+    /// <summary>
+    /// Represents a hidden pathway in the tunnels
+    /// </summary>
+    [System.Serializable]
+    public class HiddenPathway
+    {
+        public string pathwayID;
+        public GameObject pathwayObject;
+        public GameObject discoveryEffect;
+        public AudioClip discoverySound;
+    }
+} // Close namespace PDXUnderground.Interaction

@@ -1,0 +1,20 @@
+{
+    "name": "PDXUnderground.Controllers",
+    "rootNamespace": "PDXUnderground.Controllers",
+    "references": [
+        "PDXUnderground.Core",
+        "PDXUnderground.Models",
+        "PDXUnderground.Systems",
+        "PDXUnderground.Environment"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
+

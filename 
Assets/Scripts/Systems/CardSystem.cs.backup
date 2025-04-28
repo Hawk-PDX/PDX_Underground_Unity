@@ -1,0 +1,717 @@
+} // End of namespace PDXUnderground.Systems
+        /// <summary>
+        /// Handles special card effects like Dealer's Choice
+        /// </summary>
+        private void HandleSpecialCard(ICard card, Vector3? direction = null)
+        {
+            if (card.Name == GamblerAbilities.DealersChoice)
+            {
+                int cardsToDeal = 5;
+            namespace PDXUnderground.Systems
+{
+    /// <summary>
+    /// Manages the card system for the gambler character including deck, hand, and card play mechanics.
+    /// Implements both ICardSystem and ICardController interfaces.
+    /// </summary>
+    [AddComponentMenu("PDX Underground/Card System")]
+    public class CardSystem : MonoBehaviour, ICardSystem, ICardController
+    {
+        #region Fields
+</search>
+        /// <summary>
+        /// Apply card effect with direction
+        /// </summary>
+        /// <param name="card">The card to apply the effect for</param>
+        /// <param name="direction">Direction to apply the effect in</param></search></search>
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+</search>
+}
+</search>
+        /// <summary>
+        /// Apply card effect with direction
+        /// </summary>
+        /// <param name="card">The card to apply the effect for</param>
+        /// <param name="direction">Direction to apply the effect in</param></search></search>
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+</search>
+        #region Fields
+</search>
+        #region Fields
+        /// </summary>
+        /// <param name="card">The card to apply the effect for</param>
+        /// <param name="direction">Direction to apply the effect in</param></search></search>
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+</search>
+        #region Fields
+</search>
+        #region Fields
+        }
+
+        /// <summary>
+        /// Unsubscribe from events
+        /// </summary>
+        private void OnDisable()
+        {
+            // Unsubscribe from any external events here
+        }
+
+        /// <summary>
+        // Card management
+        private List<ICard> _currentHand = new List<ICard>();
+        private IDeckManager _deckManager;
+        private UnityEngine.Object _deckManagerObject;
+        private int _maxHandSize = 5;
+        
+        // Gambler abilities data
+        private static class GamblerAbilities
+        {
+            public const string Slice = "Slice";
+            public const string Flick = "Flick";
+            public const string DealersChoice = "Dealer's Choice";
+
+            public static readonly Dictionary<string, CardDefinition> Abilities = new Dictionary<string, CardDefinition>
+            {
+                {
+                    Slice,
+                    new CardDefinition
+                    {
+                        Name = Slice,
+                        Type = CardType.Attack,
+                        EnergyCost = 2f,
+                        Cooldown = 1.5f,
+                        Damage = 8f,
+                        Description = "A quick slash attack",
+                        SpecialEffect = SpecialEffect.None
+                    }
+                },
+                {
+                    Flick,
+                    new CardDefinition
+                    {
+                        Name = Flick,
+                        Type = CardType.Attack,
+                        EnergyCost = 1f,
+                        Cooldown = 1f,
+                        Damage = 5f,
+                        Description = "A rapid card throw",
+                        SpecialEffect = SpecialEffect.None
+                    }
+                },
+                {
+                    DealersChoice,
+                    new CardDefinition
+                    {
+                        Name = DealersChoice,
+                        Type = CardType.Special,
+                        EnergyCost = 5f,
+                        Cooldown = 15f,
+                        Damage = 0f,
+                        Description = "Deal 5 cards and gain power based on hand value",
+                        SpecialEffect = SpecialEffect.DealersChoice
+                    }
+                }
+            };
+        }
+        
+        // Energy management
+        private float _playerEnergy = 100f;
+        private float _maxPlayerEnergy = 100f;
+        private float _energyRegenRate = 10f;
+
+        /// <summary>
+        /// Dictionary to track ability cooldowns
+        /// </summary>
+        private Dictionary<string, float> _abilityCooldowns = new Dictionary<string, float>();
+
+        /// <summary>
+        /// Whether the system has been properly initialized
+        /// </summary>
+        private bool _isInitialized = false;
+        #endregion
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+        #region Properties
+</search>
+        #region Properties
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+        #region Properties
+</search>
+        /// <summary>
+        /// Apply card effect with direction
+        /// </summary>
+        /// <param name="card">The card to apply the effect for</param>
+        /// <param name="direction">Direction to apply the effect in</param></search></search>
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+</search>
+        /// <summary>
+        /// Helper enum for card event types
+        /// </summary>
+</search>
+        // Properties that implement interface requirements
+        #region Public Interface
+        public void UseCard(ICard card) => UseCardImplementation(card);
+        public bool UseCard(int cardIndex) => UseCardImplementationWithBool(cardIndex);
+        public bool UseCard(int cardIndex, Vector3 direction) => UseCardImplementationWithDirectionAndBool(cardIndex, direction);
+        public void UseCard(ICard card, Vector3 direction) => UseCardImplementationWithDirection(card, direction);
+        public void DiscardCard(ICard card) => DiscardCardImplementation(card);
+        public bool CanUseCard(ICard card) => IsCardPlayable(card);
+        public float GetCardCooldown(ICard card) => GetCardCooldownImplementation(card);
+        public bool IsCardOnCooldown(ICard card) => IsCardOnCooldownImplementation(card);
+        public List<ICard> GetCurrentHand() => new List<ICard>(_currentHand);
+        public void DrawCard() => DrawCardImplementation(null);
+        public void DrawCard(ICard card) => DrawCardImplementation(card);
+        public void ShuffleDeck() => ShuffleDeckImplementation();
+        public float GetAbilityCooldown(string abilityName) => GetAbilityCooldownImplementation(abilityName);
+        #endregion
+        
+        #endregion
+
+        /// <summary>
+        /// Helper enum for card event types
+        /// </summary>
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+</search>
+        /// <summary>
+        /// Helper enum for card event types
+        /// </summary>
+</search>
+        // Properties that implement interface requirements
+        public ICard[] CurrentHand => _currentHand.ToArray();
+        public ICard[] Deck => _deckManager?.GetAllCards()?.ToArray() ?? Array.Empty<ICard>();
+        public int MaxHandSize => _maxHandSize;
+        #endregion
+
+        #region Events
+        /// </summary>
+        private bool _isInitialized = false;
+        /// <summary>
+        /// Apply card effect with direction
+        /// </summary>
+        /// <param name="card">The card to apply the effect for</param>
+        /// <param name="direction">Direction to apply the effect in</param></search></search>
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+</search>
+        /// <summary>
+        /// Helper enum for card event types
+        public event Action<string, float> OnAbilityUsed;
+        public event Action<Vector3> OnCriticalHit;
+        #endregion
+
+        /// <summary>
+        /// Helper enum for card event types
+        /// </summary>
+            // Unsubscribe from any external events here
+        }
+
+        /// <summary>
+        /// Update energy regeneration
+        /// </summary>
+        private void Update()
+        {
+            if (!_isInitialized)
+        /// <summary>
+        /// Apply card effect with direction
+        /// </summary>
+        /// <param name="card">The card to apply the effect for</param>
+        /// <param name="direction">Direction to apply the effect in</param></search></search>
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+</search>
+        #endregion
+
+        #region Events
+        // Public event declarations that implement interface requirements
+        public event Action<ICard> OnCardUsed;
+        public event Action<ICard> OnCardDiscarded;
+        public event Action<ICard> OnCardDrawn;
+        public event Action<List<ICard>> OnHandChanged;
+        public event Action<string, float> OnAbilityUsed;
+        public event Action<Vector3> OnCriticalHit;
+        #endregion
+
+        /// <summary>
+        /// Helper enum for card event types
+        /// </summary>
+            {
+                _deckManager = _deckManagerObject as IDeckManager;
+                if (_deckManager == null)
+                {
+                    Debug.LogError("CardSystem: Deck manager object must implement IDeckManager interface");
+                    return;
+                }
+                _isInitialized = true;
+            }
+            else
+            {
+                Debug.LogWarning("CardSystem: No deck manager assigned, will use fallback card generation");
+                _isInitialized = true; // Still allow system to work with fallback
+            }
+    }
+}
+
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+        public float GetCardCooldown(ICard card) => GetCardCooldownImplementation(card);
+        public bool IsCardOnCooldown(ICar
+            Discarded
+        }
+        
+        /// <summary>
+        /// Subscribe to events
+        /// </summary>
+        private void OnEnable()
+        {
+            // Subscribe to any external events here
+        }
+
+        /// <summary>
+        /// Unsubscribe from events
+        /// </summary>
+        private void OnDisable()
+        {
+            // Unsubscribe from any external events here
+        }
+
+        /// <summary>
+        /// Update energy regeneration
+        /// </summary>
+    private void Update()
+    {
+        if (!_isInitialized) return;
+        
+        // Energy regeneration
+        if (_playerEnergy < _maxPlayerEnergy)
+        {
+            float energyToAdd = _energyRegenRate * _fixedDeltaTime;
+                _playerEnergy = Mathf.Min(_playerEnergy + energyToAdd, _maxPlayerEnergy);
+            }
+        }
+        
+        /// <summary>
+        /// Initialize deck manager component
+        /// </summary>
+        private void InitializeDeckManager()
+        {
+            if (_deckManagerObject != null)
+            {
+                _deckManager = _deckManagerObject as IDeckManager;
+                if (_deckManager == null)
+                {
+                    Debug.LogError("CardSystem: Deck manager object must implement IDeckManager interface");
+                    return;
+                }
+                _isInitialized = true;
+            }
+            else
+            {
+                Debug.LogWarning("CardSystem: No deck manager assigned, will use fallback card generation");
+                _isInitialized = true; // Still allow system to work with fallback
+            }
+        }
+                    new CardDefinition
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+        #region Properties
+</search>
+        #region Public Methods
+        // Public methods implementing both interfaces
+        public void UseCard(ICard card) => UseCardImplementation(card);
+        public bool UseCard(int cardIndex) => UseCardImplementationWithBool(cardIndex);
+        public bool UseCard(int cardIndex, Vector3 direction) => UseCardImplementationWithDirectionAndBool(cardIndex, direction);
+        public void UseCard(ICard card, Vector3 direction) => UseCardImplementationWithDirection(card, direction);
+        public void DiscardCard(ICard card) => DiscardCardImplementation(card);
+        public bool CanUseCard(ICard card) => IsCardPlayable(card);
+        public float GetCardCooldown(ICard card) => GetCardCooldownImplementation(card);
+        public bool IsCardOnCooldown(ICard card) => IsCardOnCooldownImplementation(card);
+        public List<ICard> GetCurrentHand() => new List<ICard>(_currentHand);
+        public void DrawCard() => DrawCardImplementation(null);
+        public void DrawCard(ICard card) => DrawCardImplementation(card);
+        public void ShuffleDeck() => ShuffleDeckImplementation();
+        public float GetAbilityCooldown(string abilityName) => GetAbilityCooldownImplementation(abilityName);
+        
+        // Additional public methods
+        public void DrawCard(ICard card, Vector3 position)
+        {
+            DrawCardImplementation(card);
+            // Additional position-based logic could be implemented here if needed
+        }
+
+        public float GetEnergyCost(string abilityName)
+        {
+            var card = _currentHand.FirstOrDefault(c => c.Name == abilityName);
+            return card?.EnergyCost ?? -1f;
+        }
+
+        public bool HasCard(string cardName)
+        {
+            return _currentHand.Any(c => c.Name == cardName);
+        }
+
+        public int GetHandSize()
+        {
+            return _currentHand.Count;
+        }
+
+        public int GetMaxHan
+                        EnergyCost = 5f,
+                        Cooldown = 15f,
+                        Damage = 0f,
+                        Description = "Deal 5 cards and gain power based on hand value",
+                        SpecialEffect = SpecialEffect.DealersChoice
+                    }
+                }
+            };
+        }
+        
+        // Energy management
+        private float _playerEnergy = 100f;
+        private float _maxPlayerEnergy = 100f;
+        private float _energyRegenRate = 10f;
+
+        /// <summary>
+        /// Dictionary to track ability cooldowns
+        /// </summary>
+        private Dictionary<string, float> _abilityCooldowns = new Dictionary<string, float>();
+
+        /// <summary>
+        /// Whether the system has been properly initialized
+        /// </summary>
+        private bool _isInitialized = false;
+        #endregion
+        /// Whether the system has been properly initialized
+        /// </summary>
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+        #region Properties
+</search>
+        #region Properties
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+        #region Properties
+</search>
+        /// <summary>
+        /// Apply card effect with direction
+        /// </summary>
+        /// <param name="card">The card to apply the effect for</param>
+        /// <param name="direction">Direction to apply the effect in</param></search></search>
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+</search>
+        /// <summary>
+        /// Helper enum for card event types
+        /// </summary>
+</search>
+        // Properties that implement interface requirements
+        public ICard[] CurrentHand => _currentHand.ToArray();
+        public ICard[] Deck => _deckManager?.GetAllCards()?.ToArray() ?? Array.Empty<ICard>();
+        public int MaxHandSize => _maxHandSize;
+        #endregion
+
+        #region Events
+        // Public event declarations that implement interface requirements
+        public event Action<ICard> OnCardUsed;
+        public event Action<ICard> OnCardDiscarded;
+        public event Action<ICard> OnCardDrawn;
+        public event Action<List<ICard>> OnHandChanged;
+        public event Action<string, float> OnAbilityUsed;
+        public event Action<Vector3> OnCriticalHit;
+        #endregion
+
+        /// <summary>
+        /// Helper enum for card event types
+        /// </summary>
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+</search>
+        /// <summary>
+        /// Helper enum for card event types
+        /// </summary>
+</search>
+        // Properties that implement interface requirements
+        public ICard[] CurrentHand => _currentHand.ToArray();
+        public ICard[] Deck => _deckManager?.GetAllCards()?.ToArray() ?? Array.Empty<ICard>();
+        public int MaxHandSize => _maxHandSize;
+        #endregion
+
+        #region Events
+        private enum CardEventType
+        {
+            Used,
+            Drawn,
+            Discarded
+        
+        /// </summary>
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+</search>
+        /// <summary>
+        /// Helper enum for card event types
+        /// </summary>
+</search>
+        // Properties that implement interface requirements
+        public ICard[] CurrentHand => _currentHand.ToArray();
+        public ICard[] Deck => _deckManager?.GetAllCards()?.ToArray() ?? Array.Empty<ICard>();
+        public int MaxHandSize => _maxHandSize;
+        #endregion
+
+        #region Events
+        /// </summary>
+
+        /// <summary>
+        /// Whether the system has been properly initialized
+        /// </summary>
+        private enum CardEventType
+        {
+            Used,
+            Drawn,
+            Discarded
+</search>
+        #region Properties
+</search>
+        #region Properties
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+        #region Properties
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+</search>
+        /// <summary>
+        /// Helper enum for card event types
+        /// </summary>
+</search>
+        // Properties that implement interface requirements
+        public ICard[] CurrentHand => _currentHand.ToArray();
+        public ICard[] Deck => _deckManager?.GetAllCards()?.ToArray() ?? Array.Empty<ICard>();
+        public int MaxHandSize => _maxHandSize;
+        #endregion
+
+        #region Events
+        // Public event declarations that implement interface requirements
+        public event Action<ICard> OnCardUsed;
+        public event Action<ICard> OnCardDiscarded;
+        public event Action<ICard> OnCardDrawn;
+        public event Action<List<ICard>> OnHandChanged;
+        public event Action<string, float> OnAbilityUsed;
+        public event Action<Vector3> OnCriticalHit;
+        #endregion
+
+        /// <summary>
+        /// Helper enum for card event types
+        /// </summary>
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+</search>
+        /// <summary>
+        /// Helper enum for card event types
+        /// </summary>
+        {
+            // Subscribe to any external events here
+        }
+
+        /// <summary>
+        /// Unsubscribe from events
+        /// </summary>
+        private void OnDisable()
+        {
+            // Unsubscribe from any external events here
+        }
+
+        /// <summary>
+        /// Update energy regeneration
+        /// </summary>
+        private void Update()
+        {
+            if (!_isInitialized)
+                return;
+
+            if (_playerEnergy < _maxPlayerEnergy)
+            {
+                float energyToAdd = _energyRegenRate * Time.deltaTime;
+                _playerEnergy = Mathf.Min(_playerEnergy + energyToAdd, _maxPlayerEnergy);
+            }
+        }
+        /// <summary>
+        /// Apply card effect with direction
+        /// </summary>
+        /// <param name="card">The card to apply the effect for</param>
+        /// <param name="direction">Direction to apply the effect in</param></search></search>
+using UnityEngine;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models;
+using PDXUnderground.Models.Interfaces;
+using ICard = PDXUnderground.Models.Interfaces.ICard;  // Explicit alias to resolve ambiguity
+</search>
+        /// <summary>
+        /// Initialize deck manager component
+        /// </summary>
+        private void InitializeDeckManager()
+        {
+            if (_deckManagerObject != null)
+            {
+                _deckManager = _deckManagerObject as IDeckManager;
+                if (_deckManager == null)
+                {
+                    Debug.LogError("CardSystem: Deck manager object must implement IDeckManager interface");
+                    return;
+                }
+                _isInitialized = true;
+            }
+            else
+            {
+                Debug.LogWarning("CardSystem: No deck manager assigned, will use fallback card generation");
+                _isInitialized = true; // Still allow system to work with fallback
+            }
+        }
+        
+        #region Public Methods
+        // Public methods implementing both interfaces
+        public void UseCard(ICard card) => UseCardImplementation(card);
+        public bool UseCard(int cardIndex) => UseCardImplementationWithBool(cardIndex);
+        public bool UseCard(int cardIndex, Vector3 direction) => UseCardImplementationWithDirectionAndBool(cardIndex, direction);
+        public void UseCard(ICard card, Vector3 direction) => UseCardImplementationWithDirection(card, direction);
+        public void DiscardCard(ICard card) => DiscardCardImplementation(card);
+        public bool CanUseCard(ICard card) => IsCardPlayable(card);
+        public float GetCardCooldown(ICard card) => GetCardCooldownImplementation(card);
+        public bool IsCardOnCooldown

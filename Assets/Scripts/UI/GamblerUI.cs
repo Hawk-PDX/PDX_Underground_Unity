@@ -2,6 +2,9 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System.Collections.Generic;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Player;
 
 namespace PDXUnderground.UI
 {
@@ -14,6 +17,7 @@ namespace PDXUnderground.UI
         [SerializeField] private GameObject cardPrefab;
         [SerializeField] private TextMeshProUGUI buzzStateText;
         [SerializeField] private TextMeshProUGUI healthText;
+        [SerializeField] private CardEffectsController cardEffectsController;
         
         [Header("UI Style")]
         [SerializeField] private Color buzzNormalColor = new Color(0.8f, 0.6f, 0.2f); // Golden
@@ -34,10 +38,10 @@ namespace PDXUnderground.UI
         // Reference to the Gambler character
         private GamblerCharacter gambler;
         private CardUI[] displayedCards;
-        private List<Card> currentHand = new List<Card>();
+        private List<ICardSystem.Card> currentHand = new List<ICardSystem.Card>();
         
         // Current buzz state
-        private GamblerCharacter.BuzzState currentBuzzState = GamblerCharacter.BuzzState.Normal;
+        private IBuzzSystem.BuzzState currentBuzzState = IBuzzSystem.BuzzState.Normal;
 
         [System.Serializable]
         private class CardUI
@@ -60,17 +64,28 @@ namespace PDXUnderground.UI
                 Debug.LogError("No GamblerCharacter found in scene!");
                 return;
             }
-
-            // Subscribe to events
-            SubscribeToEvents();
             
-            InitializeCardDisplay();
+            // Find card effects controller if not set in inspector
+            if (cardEffectsController == null)
+            {
+                cardEffectsController = FindObjectOfType<CardEffectsController>();
+            }
+            
             InitializeCardDisplay();
             
             // Initialize UI with current values
             UpdateHealthDisplay(gambler.GetCurrentHealth(), gambler.GetMaxHealth());
-            UpdateBuzzMeter(gambler.GetCurrentBuzzPercentage(), gambler.GetMaxBuzz());
-            UpdateBuzzState(gambler.GetCurrentBuzzState());
+            
+            // Get initial buzz state
+            if (gambler is IBuzzSystem buzzSystem)
+            {
+                currentBuzzState = buzzSystem.CurrentBuzzState;
+                UpdateBuzzState(currentBuzzState);
+            }
+            
+            // Subscribe to events
+            SubscribeToEvents();
+        }
         
         private void OnDestroy()
         {
@@ -98,10 +113,23 @@ namespace PDXUnderground.UI
             gambler.OnHandChanged -= UpdateCardHand;
             gambler.OnCardUsed -= HandleCardUsed;
         }
-
-        private void Update()
+        public void UpdatePlayerUI(PokerPlayer player)
         {
-            if (gambler == null) return;
+            // Display whiskey effects
+            if (player.isAI == false)
+            {
+                var cask = FindObjectOfType<SacredCaskSystem>();
+                whiskeyQualityText.text = $"Whiskey: {cask.currentQuality}";
+                
+                // Show vengeance mode indicator
+                vengeanceIndicator.SetActive(player.vengeanceBluffBonus > 0);
+                
+                // Display bilingual tells
+                if (CulturalBridge.instance != null)
+                {
+                    tellText.text = CulturalBridge.instance.GetCurrentTells();
+                }
+            }
             
             // Update cooldown displays - other updates are handled by events
             UpdateCardCooldowns();
@@ -146,27 +174,27 @@ namespace PDXUnderground.UI
             // Color is now handled by the buzz state update
         }
         
-        private void UpdateBuzzState(GamblerCharacter.BuzzState state)
+        private void UpdateBuzzState(IBuzzSystem.BuzzState state)
         {
             currentBuzzState = state;
             
             // Update visual appearance based on state
             switch (state)
             {
-                case GamblerCharacter.BuzzState.Normal:
+                case IBuzzSystem.BuzzState.Normal:
                     buzzMeterFill.color = buzzNormalColor;
                     buzzStateText.text = "Normal";
                     buzzStateText.color = buzzNormalColor;
                     break;
                     
-                case GamblerCharacter.BuzzState.Low:
+                case IBuzzSystem.BuzzState.Low:
                     buzzMeterFill.color = buzzLowColor;
                     buzzStateText.text = "Low Buzz!";
                     buzzStateText.color = buzzLowColor;
                     // Add pulsing effect for low buzz
                     break;
                     
-                case GamblerCharacter.BuzzState.Critical:
+                case IBuzzSystem.BuzzState.Critical:
                     buzzMeterFill.color = buzzCriticalColor;
                     buzzStateText.text = "CRITICAL!";
                     buzzStateText.color = buzzCriticalColor;
@@ -182,9 +210,9 @@ namespace PDXUnderground.UI
                 healthText.text = $"Health: {Mathf.Round(currentHealth)}/{Mathf.Round(maxHealth)}";
             }
         }
-        private void UpdateCardHand(List<Card> hand)
+        private void UpdateCardHand(List<ICardSystem.Card> hand)
         {
-            currentHand = new List<Card>(hand); // Store a copy of the current hand
+            currentHand = new List<ICardSystem.Card>(hand); // Store a copy of the current hand
             
             // Hide all card displays first
             foreach (var cardUI in displayedCards)
@@ -198,52 +226,54 @@ namespace PDXUnderground.UI
             for (int i = 0; i < cardCount; i++)
             {
                 CardUI cardUI = displayedCards[i];
-                Card card = hand[i];
+                ICardSystem.Card card = hand[i];
                 
                 cardUI.cardObject.SetActive(true);
                 cardUI.handIndex = i;
                 
                 // Update card display
                 cardUI.cardName.text = card.name;
-                cardUI.energyCost.text = card.buzzCost.ToString();
+                cardUI.energyCost.text = card.energyCost.ToString();
                 cardUI.description.text = card.description;
                 
                 // Set card color and icon based on type
                 SetCardAppearance(cardUI, card);
                 
                 // Set cooldown overlay
-                cardUI.cooldownOverlay.gameObject.SetActive(card.isOnCooldown);
-                if (card.isOnCooldown)
+                // Update cooldown display based on ability cooldown
+                float cooldown = gambler.GetAbilityCooldown(card.name);
+                cardUI.cooldownOverlay.gameObject.SetActive(cooldown > 0);
+                if (cooldown > 0)
                 {
-                    cardUI.cooldownOverlay.fillAmount = card.remainingCooldown / card.cooldown;
+                    cardUI.cooldownOverlay.fillAmount = cooldown;
                 }
             }
         }
         
-        private void SetCardAppearance(CardUI cardUI, Card card)
+        private void SetCardAppearance(CardUI cardUI, ICardSystem.Card card)
         {
             // Set card frame color based on card type
-            switch (card.cardType)
+            switch (card.type)
             {
-                case Card.CardType.Attack:
+                case ICardSystem.CardType.Attack:
                     cardUI.cardFrame.color = attackCardColor;
                     // Set attack icon
                     SetCardTypeIcon(cardUI, "attack_icon");
                     break;
                     
-                case Card.CardType.Defense:
+                case ICardSystem.CardType.Defense:
                     cardUI.cardFrame.color = defenseCardColor;
                     // Set defense icon
                     SetCardTypeIcon(cardUI, "defense_icon");
                     break;
                     
-                case Card.CardType.Recovery:
+                case ICardSystem.CardType.Utility:
                     cardUI.cardFrame.color = recoveryCardColor;
                     // Set recovery icon
                     SetCardTypeIcon(cardUI, "recovery_icon");
                     break;
                     
-                case Card.CardType.Special:
+                case ICardSystem.CardType.Special:
                     cardUI.cardFrame.color = specialCardColor;
                     // Set special icon
                     SetCardTypeIcon(cardUI, "special_icon");
@@ -254,7 +284,7 @@ namespace PDXUnderground.UI
             bool canAfford = true;
             if (gambler != null)
             {
-                canAfford = gambler.GetCurrentBuzzPercentage() * gambler.GetMaxBuzz() >= card.buzzCost;
+                canAfford = gambler.GetCurrentBuzzPercentage() * gambler.GetMaxBuzz() >= card.energyCost;
             }
             
             // Apply visual feedback for unplayable cards
@@ -288,13 +318,14 @@ namespace PDXUnderground.UI
                 
                 if (cardUI.handIndex >= 0 && cardUI.handIndex < currentHand.Count)
                 {
-                    Card card = currentHand[cardUI.handIndex];
+                    ICardSystem.Card card = currentHand[cardUI.handIndex];
+                    float cooldown = gambler.GetAbilityCooldown(card.name);
                     
-                    if (card.isOnCooldown)
+                    if (cooldown > 0)
                     {
                         // Update cooldown fill amount
                         cardUI.cooldownOverlay.gameObject.SetActive(true);
-                        cardUI.cooldownOverlay.fillAmount = card.remainingCooldown / card.cooldown;
+                        cardUI.cooldownOverlay.fillAmount = cooldown;
                     }
                     else
                     {
@@ -304,13 +335,21 @@ namespace PDXUnderground.UI
             }
         }
         
-        private void HandleCardUsed(Card card)
+        private void HandleCardUsed(ICardSystem.Card card)
         {
-            // This could play a card use animation or effect
-            Debug.Log($"Card used: {card.name}");
+            // Play card use animation/effect if available
+            if (cardEffectsController != null)
+            {
+                cardEffectsController.PlayCardUseEffect(card.type switch {
+                    CardType.Attack => CardEffectType.Attack,
+                    CardType.Defense => CardEffectType.Defense,
+                    CardType.Utility => CardEffectType.Utility,
+                    CardType.Special => CardEffectType.Special,
+                    _ => CardEffectType.None
+                });
+            }
             
-            // You could add additional visual feedback here
-            // such as particles, sound effects, or animations
+            Debug.Log($"Card used: {card.name}");
         }
 
         private void OnCardClicked(int index)

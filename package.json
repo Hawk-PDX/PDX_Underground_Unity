@@ -1,0 +1,24 @@
+{
+  "name": "pdx_underground_unity",
+  "version": "1.0.0",
+  "description": "A Unity-based game set in 1800s Portland with historically accurate gaslight effects.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hawkpdx/PDX_Underground_Unity.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/hawkpdx/PDX_Underground_Unity/issues"
+  },
+  "homepage": "https://github.com/hawkpdx/PDX_Underground_Unity#readme",
+  "dependencies": {
+    "mjml": "^4.15.3"
+  }
+}

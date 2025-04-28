@@ -1,0 +1,27 @@
+{
+    "name": "PDXUnderground.Interaction",
+    "rootNamespace": "PDXUnderground.Interaction",
+    "references": [
+        "PDXUnderground.Scripts",
+        "PDXUnderground.Core",
+        "PDXUnderground.Models",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Universal.Config",
+        "Unity.RenderPipelines.Universal.Engine"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.render-pipelines.universal",
+            "expression": "14.0.12",
+            "define": "USING_URP"
+        }
+    ],
+    "noEngineReferences": false
+}

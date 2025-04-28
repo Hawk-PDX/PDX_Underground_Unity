@@ -1,9 +1,9 @@
-
-using UnityEngine;
-using UnityEngine.UI;
-using TMPro;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;  // For Button
+using PDXUnderground.UI;      // For BuzzUIController
+using PDXUnderground.Player;  // For GamblerCharacter
 
 namespace PDXUnderground
 {

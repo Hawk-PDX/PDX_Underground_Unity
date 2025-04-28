@@ -1,6 +1,9 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
-using TMPro;
+using UnityEngine.UI;  // For UI components
+using TMPro;          // For TextMeshProUGUI
+using PDXUnderground.UI;  // For BuzzUIController
 
 namespace PDXUnderground.Test.Prefabs
 {
@@ -137,5 +140,114 @@ namespace PDXUnderground.Test.Prefabs
             fillArea.transform.SetParent(sliderObj.transform, false);
             RectTransform fillRect = fillArea.AddComponent<RectTransform>();
             fillRect.anchorMin = new Vector2(0, 0);
-            fillRect.anchorMax = new Vector2(1, 1
-
+            fillRect.anchorMax = new Vector2(1, 1);
+            fillRect.sizeDelta = new Vector2(-10, -6);
+            fillRect.anchoredPosition = new Vector2(-5, 0);
+            
+            // Create slider fill
+            GameObject fill = new GameObject("Fill");
+            fill.transform.SetParent(fillArea.transform, false);
+            RectTransform fillImageRect = fill.AddComponent<RectTransform>();
+            fillImageRect.anchorMin = Vector2.zero;
+            fillImageRect.anchorMax = new Vector2(1, 1);
+            fillImageRect.sizeDelta = Vector2.zero;
+            
+            Image fillImage = fill.AddComponent<Image>();
+            fillImage.color = normalColor;
+            
+            // Configure the slider
+            slider.fillRect = fillImageRect;
+            slider.direction = Slider.Direction.LeftToRight;
+            slider.minValue = 0f;
+            slider.maxValue = 100f;
+            slider.value = 0f;
+            slider.wholeNumbers = false;
+            
+            // Set the reference to our class variable
+            buzzMeter = slider;
+            
+            // Create buzz level text
+            GameObject textObj = new GameObject("BuzzLevelText");
+            textObj.transform.SetParent(panel.transform, false);
+            RectTransform textRect = textObj.AddComponent<RectTransform>();
+            textRect.anchorMin = new Vector2(1, 0.5f);
+            textRect.anchorMax = new Vector2(1, 0.5f);
+            textRect.pivot = new Vector2(1, 0.5f);
+            textRect.sizeDelta = new Vector2(80, 30);
+            textRect.anchoredPosition = new Vector2(-10, 0);
+            
+            TextMeshProUGUI tmpText = textObj.AddComponent<TextMeshProUGUI>();
+            tmpText.text = "0%";
+            tmpText.fontSize = 18;
+            tmpText.alignment = TextAlignmentOptions.Right;
+            tmpText.color = Color.white;
+            
+            // Set the reference to our class variable
+            buzzLevelText = tmpText;
+            
+            // Create critical warning panel
+            GameObject warningObj = new GameObject("CriticalWarningPanel");
+            warningObj.transform.SetParent(panel.transform, false);
+            RectTransform warningRect = warningObj.AddComponent<RectTransform>();
+            warningRect.anchorMin = new Vector2(0, 0);
+            warningRect.anchorMax = new Vector2(1, 1);
+            warningRect.sizeDelta = Vector2.zero;
+            warningRect.anchoredPosition = Vector2.zero;
+            
+            Image warningImage = warningObj.AddComponent<Image>();
+            warningImage.color = new Color(1f, 0f, 0f, 0.2f);
+            
+            // Create warning text
+            GameObject warningTextObj = new GameObject("WarningText");
+            warningTextObj.transform.SetParent(warningObj.transform, false);
+            RectTransform warningTextRect = warningTextObj.AddComponent<RectTransform>();
+            warningTextRect.anchorMin = new Vector2(0, 0.5f);
+            warningTextRect.anchorMax = new Vector2(1, 0.5f);
+            warningTextRect.pivot = new Vector2(0.5f, 0.5f);
+            warningTextRect.sizeDelta = new Vector2(0, 40);
+            warningTextRect.anchoredPosition = Vector2.zero;
+            
+            TextMeshProUGUI warningTmpText = warningTextObj.AddComponent<TextMeshProUGUI>();
+            warningTmpText.text = "CRITICAL BUZZ LEVEL!";
+            warningTmpText.fontSize = 24;
+            warningTmpText.fontStyle = FontStyles.Bold;
+            warningTmpText.alignment = TextAlignmentOptions.Center;
+            warningTmpText.color = Color.white;
+            
+            // Set the reference to our class variable and hide by default
+            criticalWarningPanel = warningObj;
+            criticalWarningPanel.SetActive(false);
+        }
+        
+        /// <summary>
+        /// Updates the buzz UI display with the provided buzz level
+        /// </summary>
+        /// <param name="buzzLevel">Current buzz level (0-100)</param>
+        public void UpdateBuzzDisplay(float buzzLevel)
+        {
+            if (buzzMeter != null)
+            {
+                buzzMeter.value = buzzLevel;
+                
+                // Update fill color based on level
+                Image fillImage = buzzMeter.fillRect.GetComponent<Image>();
+                if (fillImage != null)
+                {
+                    fillImage.color = buzzLevel >= 80 ? criticalColor : normalColor;
+                }
+                
+                // Update text
+                if (buzzLevelText != null && showNumericalValue)
+                {
+                    buzzLevelText.text = Mathf.RoundToInt(buzzLevel) + "%";
+                }
+                
+                // Show critical warning if needed
+                if (criticalWarningPanel != null)
+                {
+                    criticalWarningPanel.SetActive(buzzLevel >= 90);
+                }
+            }
+        }
+    }
+}

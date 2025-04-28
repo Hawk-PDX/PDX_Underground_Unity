@@ -1,0 +1,23 @@
+PDXEnvironmentTest Scene Setup
+============================
+
+Required GameObjects:
+1. Environment
+   └── TestEnvironment
+       ├── PDXEnvironmentTestScene (script)
+       ├── PortlandEnvironmentSetup (script)
+       └── PDXProBuilderGenerator (script)
+
+2. Ground
+   └── Plane (scaled to fit test area)
+
+3. MainCamera
+   └── Basic orbit for testing
+
+4. Directional Light
+   └── Basic scene lighting
+
+Initial Test Configuration:
+- Grid Size: 3x3 blocks
+- Block Size: 61m (historical)
+- Test area: 183m x 183m

@@ -50,8 +50,7 @@ namespace PDXUnderground.Interaction
         private int deathCount = 0;
         private float gameStartTime;
         private float gameplayTime = 0f;
-        private bool isLoading = false;
-
+        private bool isLoading = false; // Tracks whether game is currently in loading state
         #endregion
 
         #region Public Properties
@@ -122,12 +121,12 @@ namespace PDXUnderground.Interaction
         /// <summary>
         /// Activates a checkpoint when the player reaches it
         /// </summary>
+        /// <param name="checkpoint">The checkpoint to activate</param>
         public void ActivateCheckpoint(Checkpoint checkpoint)
         {
-            if (checkpoint == null || checkpoint == currentCheckpoint)
+            // Skip activation during loading or if checkpoint is invalid or already current
+            if (isLoading || checkpoint == null || checkpoint == currentCheckpoint)
                 return;
-                
-            // Deactivate the current checkpoint
             if (currentCheckpoint != null)
             {
                 currentCheckpoint.isActive = false;
@@ -224,11 +223,11 @@ namespace PDXUnderground.Interaction
         /// </summary>
         public void RegisterCollectedItem(CollectibleItem item)
         {
-            if (item == null || !trackCollectibles)
+            // Don't register items during loading to prevent duplicates
+            if (isLoading || item == null || !trackCollectibles)
                 return;
-                
-            string itemID = item.ItemID;
             
+            string itemID = item.ItemID;
             if (!collectedItemIDs.Contains(itemID))
             {
                 collectedItemIDs.Add(itemID);
@@ -483,7 +482,6 @@ namespace PDXUnderground.Interaction
     public class CheckpointTrigger : MonoBehaviour
     {
         private Checkpoint checkpoint;
-        private bool activated = false;
         
         // Event for when the checkpoint is triggered
         [HideInInspector]
@@ -682,5 +680,6 @@ namespace PDXUnderground.Interaction
         {
             return visitedAreas.Contains(areaID);
         }
-    }
-}
+    } // End of SaveGameData class
+    
+} // End of namespace PDXUnderground.Interaction

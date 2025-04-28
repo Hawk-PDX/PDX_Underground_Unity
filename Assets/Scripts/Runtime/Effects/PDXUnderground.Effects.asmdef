@@ -1,0 +1,17 @@
+{
+    "name": "PDXUnderground.Effects",
+    "rootNamespace": "PDXUnderground.Effects",
+    "references": [
+        "PDXUnderground.Core",
+        "PDXUnderground.Models"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

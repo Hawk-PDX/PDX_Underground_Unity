@@ -1,3 +1,211 @@
+# PDX Underground Unity Game
+
+A Unity-based game set in 1800s Portland with historically accurate gaslight effects.
+
+## Setting Up Script Initialization Order
+
+To ensure all scripts run in the correct order, follow these setup instructions:
+
+### 1. Create an Init Scene
+
+This scene will initialize the core game systems before loading any gameplay scenes.
+
+1. In Unity, create a new scene (`File > New Scene` or `Ctrl+N`)
+2. Save it as "Init" in your Scenes folder (`File > Save As` or `Ctrl+S`)
+3. Create an empty GameObject and name it "GameManager"
+   - Select `GameObject > Create Empty` from the menu
+   - In the Inspector, rename it to "GameManager"
+4. Add the GameManager script component:
+   - With the GameManager object selected, click `Add Component` in the Inspector
+   - Search for "GameManager" and select it
+   - The GameManager should now appear in the Inspector
+
+![Init Scene Setup](Docs/Images/init_scene_setup.png)
+
+### 2. Set Up Build Settings
+
+Configure your project's scene loading order:
+
+1. Open the Build Settings window (`File > Build Settings` or `Ctrl+Shift+B`)
+2. Add your scenes to the "Scenes in Build" list:
+   - Drag the Init scene from your Project window to the first slot (index 0)
+   - Add your MainMenu scene as the second scene
+   - Add your gameplay scenes after that
+3. Make sure "Init" is at index 0, as this will be the first scene loaded when the game starts
+
+![Build Settings](Docs/Images/build_settings.png)
+
+### 3. Configure GameManager Properties
+
+With the GameManager GameObject selected in your Init scene:
+
+1. In the Inspector, set the startup scene to match your menu scene name:
+   - Find the "_startupScene" field and enter "MainMenu" (or your menu scene name)
+2. Configure Time of Day settings:
+   - Set "_timeOfDay" to a value between 0-1 (0=midnight, 0.5=noon)
+   - For testing gas lamps, use 0.9 (evening) to see them at full brightness
+3. Set your Weather Intensity as needed:
+   - Higher values (0.5-1.0) create more dramatic flickering effects
+   - Lower values (0-0.3) create more subtle, steady lighting
+
+![GameManager Settings](Docs/Images/gamemanager_settings.png)
+
+### 4. Create a Gas Lamp Prefab
+
+Once you have the scene initialization set up, create a gas lamp prefab:
+
+1. Create a new empty GameObject in any scene and name it "GasLamp"
+2. Add a Light component:
+   - With the GasLamp object selected, click `Add Component` and search for "Light"
+   - Set the Light Type to "Point"
+   - Set Range to around 5-10
+   - Set Intensity to around 1.5
+   - Set Color to a warm yellow/orange tone
+3. Add the GaslightFlicker script:
+   - Click `Add Component` and search for "GaslightFlicker"
+   - Configure the properties in the Inspector:
+     - Lantern Type: GasLamp
+     - Color Temperature: ~1900K (historically accurate for gas lamps)
+     - Min/Max Intensity: 0.8/1.2 (for subtle flickering)
+     - Flicker Speed: 0.1 (moderate flickering)
+     - Synchronization: Enable and set radius to 3-5 units
+4. Save as a prefab by dragging the GameObject into your Project window
+
+![Gas Lamp Prefab](Docs/Images/gaslamp_prefab.png)
+
+### 5. Test Your Setup
+
+To verify everything is working correctly:
+
+1. Play the game starting from the Init scene
+2. The GameManager should initialize all systems in order:
+   - Core systems first
+   - Scene systems second
+   - Environment systems third
+   - Effects (including gas lamps) last
+3. Check the Console for initialization messages in the correct order
+4. Your gas lamps should be flickering with historically accurate behavior
+5. Try placing multiple gas lamps near each other to see the synchronization effect
+
+## Initialization Order Details
+
+This setup ensures your scripts initialize in the following order:
+
+1. **Core Systems** (via GameManager):
+   - Save data
+   - Input system
+   - Audio system
+   - Other game-wide persistent systems
+   
+2. **Scene Systems**:
+   - Level-specific managers
+   - UI systems
+   - Camera systems
+   
+3. **Environment Systems**:
+   - Time of day
+   - Weather effects
+   - NPC systems
+   
+4. **Visual Effects**:
+   - Gaslight flickering (GaslightFlicker.cs)
+   - Other visual effects
+   
+This order ensures dependencies are resolved properly and prevents null reference errors.
+
+## Troubleshooting
+
+If you encounter issues:
+
+1. **Script errors during initialization**:
+   - Check the Console for error messages
+   - Use GameManager.GetInitializationErrors() to get a list of all errors
+
+2. **Gas lamps not flickering**:
+   - Ensure the Time of Day value creates sufficient light intensity
+   - Check that GaslightFlicker component is enabled
+   - Verify the script has a reference to the Light component
+
+3. **Synchronization not working**:
+   - Check that gas lamps are within each other's synchronization radius
+   - Verify that synchronizeWithNearby is set to true
+   - Try increasing the synchronization amount for a stronger effect
+
+# PDX Underground Environment Setup
+
+This project provides an environment setup wizard for the PDX Underground game, focusing on recreating 1880s Portland with streets, tunnels, and speakeasy environments.
+
+## Setup Instructions
+
+There are two ways to set up the environment:
+
+### Method 1: Using the Setup Scene
+
+1. Open the SetupScene located at `Assets/Scenes/SetupScene.unity`
+2. The scene should automatically be checked and fixed if needed by the SetupSceneChecker
+3. Press the Play button to run the setup
+4. Check the Unity Console for progress
+5. Once completed, you can exit Play mode
+6. A detailed log will be saved to `Logs/setup_log.txt`
+
+### Method 2: Using the Editor Menu
+
+If Unity editor menus are working correctly, you can:
+
+1. Use the `PDX Underground > Environment Setup Wizard` menu item
+2. Follow the step-by-step process in the wizard
+3. Alternatively, use `PDX Underground > Verify Setup Scene` to check and fix the setup scene
+
+## Environment Components
+
+The PDX Underground environment includes:
+
+* Street environments with cobblestone streets and wooden sidewalks
+* Shanghai Tunnels with wooden supports and brick walls
+* Speakeasy interiors with period-appropriate details
+* Gaslight street lighting for historical accuracy
+
+## Folder Structure
+
+The setup creates the following folder structure:
+
+```
+Assets/
+├── Materials/
+│   └── Environment/
+│       ├── Streets/
+│       ├── Tunnels/
+│       └── Speakeasy/
+├── Textures/
+│   └── Environment/
+│       ├── Streets/
+│       ├── Tunnels/
+│       └── Speakeasy/
+├── Models/
+│   └── Environment/
+│       ├── Streets/
+│       ├── Tunnels/
+│       └── Lighting/
+└── Prefabs/
+    └── Environment/
+        ├── Streets/
+        │   ├── Compositions/
+        │   └── Props/
+        ├── Tunnels/
+        └── Speakeasy/
+```
+
+## Troubleshooting
+
+If you encounter issues:
+
+1. Check the log file at `Logs/setup_log.txt`
+2. Verify all scripts are compiled correctly
+3. Try running the SetupEnvironment script directly in Play mode
+4. Ensure you have proper write permissions in the project directory
+
+For more detailed information, see the documentation in `Assets/Documentation/`.
+
 # PDX Underground
 
 A Unity game set in 1880s Portland, Oregon, featuring the mysterious Shanghai Tunnels and historical speakeasies.

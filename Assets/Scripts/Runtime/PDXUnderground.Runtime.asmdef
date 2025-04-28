@@ -1,0 +1,19 @@
+{
+    "name": "PDXUnderground.Runtime",
+    "rootNamespace": "PDXUnderground.Runtime",
+    "references": [
+        "PDXUnderground.Core",
+        "PDXUnderground.Models",
+        "PDXUnderground.Systems"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
+

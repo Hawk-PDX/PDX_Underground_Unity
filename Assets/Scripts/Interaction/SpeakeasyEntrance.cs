@@ -1,31 +1,18 @@
-    
-    /// <summary>
-    /// Enum to differentiate between door sound types
-    /// </summary>
-    public enum DoorSoundType
-    {
-        Locked,
-        Unlock,
-        Open,
-        Close,
-        Knock
-    }
-    
-    // Inspector variables for door sounds and effects
-    [Header("Door Sounds and Effects")]
-    [SerializeField] private AudioClip openSound;
-    [SerializeField] private AudioClip closeSound;
-    [SerializeField] private AudioClip lockedSound;
-    [SerializeField] private AudioClip unlockSound;
-    [SerializeField] private AudioClip knockSound;
-    [SerializeField] private ParticleSystem doorDustParticles;
-    [SerializeField] private Collider gamblerDetectionTrigger;
-
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;  // For Volume and VolumeProfile
+using UnityEngine.SceneManagement;
+using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Core.Models;
 
+// Force error if URP is not enabled
+#if !USING_URP
+#error "Universal Render Pipeline is not enabled. Please enable it in Project Settings > Graphics"
+#endif
 namespace PDXUnderground.Interaction
 {
     /// <summary>
@@ -34,127 +21,227 @@ namespace PDXUnderground.Interaction
     /// </summary>
     public class SpeakeasyEntrance : MonoBehaviour
     {
-        #region Inspector Properties
+        #region Lighting Configuration
+        [Header("Lighting")]
+        [SerializeField] private VolumeProfile indoorProfile;    // Using URP VolumeProfile
+        [SerializeField] private VolumeProfile outdoorProfile;   // Using URP VolumeProfile
+        private Volume cameraVolumeComponent;                    // Using URP Volume
+        [SerializeField] private float outdoorVolumeWeight = 0.3f;
+        [SerializeField] private float indoorVolumeWeight = 0.7f;
+        [SerializeField] private Color indoorAmbientColor = new Color(0.4f, 0.4f, 0.6f);
+        [SerializeField] private Color outdoorAmbientColor = new Color(0.6f, 0.6f, 0.7f);
+        private Coroutine activeVolumeTransition;
+        private PDXUnderground.Core.URPCameraSetup cameraSetup;
+        #endregion
 
-        [Header("Entrance Properties")]
-        [SerializeField] private GameObject entranceFacade;
-        [SerializeField] private GameObject hiddenDoor;
-        [SerializeField] private Transform doorPivot;
-        [SerializeField] private float doorOpenAngle = 85f;
-        [SerializeField] private float doorOpenSpeed = 2f;
+        #region Enums
+        /// <summary>
+        /// Enum for door sound types
+        /// </summary>
+        public enum DoorSoundType
+        {
+            Locked,
+            Unlock,
+            Open,
+            Close,
+            Knock
+        }
+        /// <summary>
+        /// Enum representing the current state of the door
+        /// </summary>
+        public enum DoorState
+        {
+            Closed,
+            Opening,
+            Open,
+            Closing
+        }
 
-        [Header("Secret Knock System")]
-        [SerializeField] private bool requireSecretKnock = true;
-        [SerializeField] private float knockTimeThreshold = 1.5f; // Max time between knocks
-        [SerializeField] private List<float> knockPattern = new List<float>() { 0.5f, 0.3f, 0.8f }; // Timing pattern for knocks
-        [SerializeField] private float knockTolerance = 0.2f; // Tolerance for timing accuracy
-        [SerializeField] private GameObject knockTriggerArea;
-        [SerializeField] private AudioClip knockSound;
-        [SerializeField] private AudioClip wrongPatternSound;
-        [SerializeField] private AudioClip correctPatternSound;
+        #endregion
 
-        [Header("Environment")]
-        [SerializeField] private List<GameObject> lanterns = new List<GameObject>();
-        [SerializeField] private List<Transform> npcSpawnPoints = new List<Transform>();
-        [SerializeField] private GameObject secretPassagePrefab;
-        [SerializeField] private Transform secretPassageSpawnPoint;
-        
-        [Header("Audio")]
-        [SerializeField] private AudioClip ambientSound;
-        [SerializeField] private AudioClip doorOpenSound;
-        [SerializeField] private AudioClip doorCloseSound;
-        [SerializeField] private float ambientVolume = 0.5f;
-        
-        [Header("Level Progression")]
-        [SerializeField] private Transform tunnelEntrancePoint;
-        [SerializeField] private GameObject tunnelEntrancePrefab;
-        [SerializeField] private List<CollectibleItem> requiredItems = new List<CollectibleItem>();
-        [SerializeField] private bool tunnelAccessRequiresItems = true;
-        [SerializeField] private string nextLevelName;
-        
-        [Header("Events")]
+        #region Events
+        // Events
+        public event System.Action<DoorState> OnDoorStateChanged;
         public UnityEvent OnDoorOpened;
         public UnityEvent OnDoorClosed;
         public UnityEvent OnSecretKnockCorrect;
         public UnityEvent OnSecretKnockIncorrect;
-        public UnityEvent OnTunnelEntranceRevealed;
         public UnityEvent OnPlayerEnteredTunnel;
-
         #endregion
 
-        #region Private Variables
+        #region State
+        // Current door state
+        private DoorState currentDoorState = DoorState.Closed;
+        #endregion
 
-        private bool doorOpen = false;
-        private bool tunnelEntranceRevealed = false;
-        private AudioSource audioSource;
-        private List<float> playerKnockPattern = new List<float>();
-        private float lastKnockTime;
-        private bool isListeningForKnock = false;
-        private GameObject doorJamb;
-        private Light doorwayLight;
-        private List<GameObject> spawnedNPCs = new List<GameObject>();
-        private ParticleSystem dustParticles;
-        private Coroutine knockEvaluationCoroutine;
-        private bool playerInTriggerArea = false;
+        #region Fields and Properties
+        // Door components
+        [Header("Door Components")]
+        [SerializeField] private GameObject hiddenDoor;
+        [SerializeField] private Transform doorPivot;
+        [SerializeField] private float doorOpenAngle = 90f;
+        [SerializeField] private float doorOpenSpeed = 2f;
+        [SerializeField] private Collider doorCollider;
         private Quaternion doorClosedRotation;
         private Quaternion doorOpenRotation;
+        private bool doorOpen = false;
+
+        // Audio
+        [Header("Audio")]
+        [SerializeField] private AudioClip ambientSound;
+        [SerializeField] private float ambientVolume = 0.3f;
+        [SerializeField] private AudioClip knockSound;
+        [SerializeField] private AudioClip doorOpenSound;
+        [SerializeField] private AudioClip doorCloseSound;
+        [SerializeField] private AudioClip lockedSound;
+        [SerializeField] private AudioClip unlockSound;
+        [SerializeField] private AudioClip openSound;
+        [SerializeField] private AudioClip closeSound;
+        [SerializeField] private AudioClip correctPatternSound;
+        [SerializeField] private AudioClip wrongPatternSound;
+        private AudioSource audioSource;
+
+        // Knock system
+        [Header("Knock System")]
+        [SerializeField] private bool requireSecretKnock = true;
+        [SerializeField] private List<float> knockPattern = new List<float> { 0.5f, 0.3f, 0.8f };
+        [SerializeField] private float knockTolerance = 0.2f;
+        [SerializeField] private float knockTimeThreshold = 2f;
+        private List<float> playerKnockPattern = new List<float>();
+        private bool isListeningForKnock = false;
+        private float lastKnockTime = 0f;
+        private Coroutine knockEvaluationCoroutine;
+        private GameObject knockTriggerArea;
+        private bool playerInTriggerArea = false;
+
+        // Visual effects
+        [Header("Visual Effects")]
+        [SerializeField] private GameObject[] lanterns;
+        [SerializeField] private GameObject speakeasyRoot;
+        [SerializeField] private ParticleSystem doorDustParticles;
+        private ParticleSystem dustParticles;
+        private Light doorwayLight;
+
+        // Level transition
+        [Header("Level Transition")]
+        [SerializeField] private GameObject tunnelEntrancePrefab;
+        [SerializeField] private Transform tunnelEntrancePoint;
+        [SerializeField] private string nextLevelName = "ShanghaiTunnels";
+        [SerializeField] private bool tunnelEntranceRevealed = false;
+        [SerializeField] private bool tunnelAccessRequiresItems = false;
+        [SerializeField] private List<CollectibleItem> requiredItems;
+
+        // Gambler character integration
+        [Header("Gambler Integration")]
+        [SerializeField] private Collider gamblerDetectionTrigger;
 
         #endregion
 
-        #region Unity Lifecycle
+        #region Unity Lifecycle Methods
 
         private void Awake()
         {
-            // Initialize components
             audioSource = GetComponent<AudioSource>();
             if (audioSource == null)
             {
                 audioSource = gameObject.AddComponent<AudioSource>();
             }
-            
+
+            // Get camera setup for URP post-processing transitions
+            cameraSetup = Camera.main?.GetComponent<PDXUnderground.Core.URPCameraSetup>();
+            if (cameraSetup == null)
+            {
+                Debug.LogWarning("URPCameraSetup not found on main camera. Lighting transitions may not have proper post-processing.");
+            }
+
             // Cache door rotations
             if (doorPivot != null)
             {
                 doorClosedRotation = doorPivot.rotation;
                 doorOpenRotation = doorClosedRotation * Quaternion.Euler(0, doorOpenAngle, 0);
             }
-            
-            // Configure audio source
-            audioSource.loop = true;
-            audioSource.volume = ambientVolume;
-            audioSource.spatialBlend = 1.0f; // Full 3D
-            audioSource.rolloffMode = AudioRolloffMode.Linear;
-            audioSource.maxDistance = 20f;
-            
-            // Create dust particle system
-            CreateDustParticles();
-            
-            // Configure the knock trigger area
-            SetupKnockTriggerArea();
+
+            if (audioSource != null)
+            {
+                // Configure audio source
+                audioSource.loop = true;
+                audioSource.volume = ambientVolume;
+                audioSource.spatialBlend = 1.0f; // Full 3D
+                audioSource.rolloffMode = AudioRolloffMode.Linear;
+                audioSource.maxDistance = 20f;
+            }
+
+            // Initialize lighting system
+            // Initialize lighting system
+            InitializeVolume();
         }
 
+        /// <summary>
+        /// Initialize the URP Volume component
+        /// </summary>
+        private void InitializeVolume()
+        {
+            cameraVolumeComponent = Camera.main?.GetComponent<Volume>();
+            if (cameraVolumeComponent == null)
+            {
+                Debug.LogWarning("Volume component not found on main camera. Searching for global volume...");
+
+                // Try to find any Volume in the scene (might be on a global volume GameObject)
+                Volume[] volumes = FindObjectsOfType<Volume>();
+                if (volumes != null && volumes.Length > 0)
+                {
+                    cameraVolumeComponent = volumes[0];
+                    Debug.Log($"Found alternative Volume component on '{cameraVolumeComponent.gameObject.name}'. Using this for transitions.");
+                }
+                else
+                {
+                    GameObject volumeObject = new GameObject("Global Volume");
+                    cameraVolumeComponent = volumeObject.AddComponent<Volume>();
+                    cameraVolumeComponent.isGlobal = true;
+
+                    // Set default profile if available
+                    if (outdoorProfile != null)
+                    {
+                        cameraVolumeComponent.profile = outdoorProfile;
+                    }
+                    else
+                    {
+                        Debug.LogWarning("Outdoor volume profile not assigned. Using an empty profile.");
+                    }
+                }
+            }
+
+            // Validate URP profiles
+            if (indoorProfile == null)
+            {
+                Debug.LogWarning("Indoor volume profile not assigned. Lighting transitions may not work correctly.");
+            }
+        }
         private void Start()
         {
-            // Set initial state
-            if (hiddenDoor != null)
+            // Create visual effects if not set in Inspector
+            if (dustParticles == null)
             {
-                hiddenDoor.SetActive(true);
+                CreateDustParticles();
             }
-            
-            // Play ambient sound
-            if (ambientSound != null)
+
+            if (doorwayLight == null)
             {
-                audioSource.clip = ambientSound;
-                audioSource.Play();
+                CreateDoorwayLight();
             }
-            
-            // Initialize lanterns
+
+            // Initialize knock trigger area
+            SetupKnockTriggerArea();
+
+            // Initialize tunnel entrance
+            InitializeTunnelEntrance();
+
+            // Activate lanterns
             ActivateLanterns();
-            
-            // Create doorjamb light
-            CreateDoorwayLight();
-            
-            // Hide tunnel entrance initially
+        }
+
+        private void InitializeTunnelEntrance()
+        {
             if (tunnelEntrancePrefab != null && tunnelEntrancePoint != null)
             {
                 GameObject tunnelEntrance = Instantiate(tunnelEntrancePrefab, tunnelEntrancePoint.position, tunnelEntrancePoint.rotation);
@@ -167,7 +254,7 @@ namespace PDXUnderground.Interaction
             if (other.CompareTag("Player"))
             {
                 playerInTriggerArea = true;
-                
+
                 // Show interaction prompt if player is near door
                 if (knockTriggerArea != null && knockTriggerArea.activeSelf)
                 {
@@ -182,7 +269,7 @@ namespace PDXUnderground.Interaction
             {
                 playerInTriggerArea = false;
                 ShowInteractionPrompt(false);
-                
+
                 // Reset the knock system when player leaves
                 StopListeningForKnock();
             }
@@ -198,13 +285,26 @@ namespace PDXUnderground.Interaction
                 {
                     HandleKnock();
                 }
-                
+
                 // Check for door interaction when open
                 if (doorOpen && Input.GetKeyDown(KeyCode.E) && Vector3.Distance(hiddenDoor.transform.position, Camera.main.transform.position) < 2f)
                 {
                     EnterSpeakeasy();
                 }
             }
+        }
+
+        private void OnDestroy()
+        {
+            // Clean up any active coroutines
+            if (activeVolumeTransition != null)
+            {
+                StopCoroutine(activeVolumeTransition);
+                activeVolumeTransition = null;
+            }
+
+            // Clean up references to prevent memory leaks
+            cameraVolumeComponent = null;
         }
 
         #endregion
@@ -221,7 +321,7 @@ namespace PDXUnderground.Interaction
                 knockTriggerArea = new GameObject("KnockTriggerArea");
                 knockTriggerArea.transform.SetParent(transform);
                 knockTriggerArea.transform.localPosition = new Vector3(0, 1f, 0.5f);
-                
+
                 BoxCollider triggerCollider = knockTriggerArea.AddComponent<BoxCollider>();
                 triggerCollider.isTrigger = true;
                 triggerCollider.size = new Vector3(1.5f, 2f, 0.5f);
@@ -238,19 +338,19 @@ namespace PDXUnderground.Interaction
             {
                 AudioSource.PlayClipAtPoint(knockSound, hiddenDoor.transform.position);
             }
-            
+
             // Visual feedback
             if (dustParticles != null)
             {
                 dustParticles.Play();
             }
-            
+
             // If we need a secret knock pattern
             if (requireSecretKnock)
             {
                 // Record the knock timing
                 float currentTime = Time.time;
-                
+
                 // If this is the first knock or we restarted the pattern
                 if (!isListeningForKnock)
                 {
@@ -260,14 +360,14 @@ namespace PDXUnderground.Interaction
                 {
                     // Calculate time since last knock
                     float timeSinceLastKnock = currentTime - lastKnockTime;
-                    
+
                     // Add to player pattern
                     playerKnockPattern.Add(timeSinceLastKnock);
                 }
-                
+
                 // Update last knock time
                 lastKnockTime = currentTime;
-                
+
                 // If we have enough knocks to evaluate, check if the pattern is correct
                 if (playerKnockPattern.Count >= knockPattern.Count)
                 {
@@ -289,7 +389,7 @@ namespace PDXUnderground.Interaction
             isListeningForKnock = true;
             playerKnockPattern.Clear();
             lastKnockTime = Time.time;
-            
+
             // Start the knock timeout coroutine
             if (knockEvaluationCoroutine != null)
             {
@@ -305,7 +405,7 @@ namespace PDXUnderground.Interaction
         {
             isListeningForKnock = false;
             playerKnockPattern.Clear();
-            
+
             if (knockEvaluationCoroutine != null)
             {
                 StopCoroutine(knockEvaluationCoroutine);
@@ -320,7 +420,7 @@ namespace PDXUnderground.Interaction
         {
             // Wait for the knock timeout
             yield return new WaitForSeconds(knockTimeThreshold);
-            
+
             // If we're still listening, evaluate the pattern
             if (isListeningForKnock && playerKnockPattern.Count > 0)
             {
@@ -334,7 +434,7 @@ namespace PDXUnderground.Interaction
         private void EvaluateKnockPattern()
         {
             bool patternCorrect = true;
-            
+
             // If patterns have different lengths, they're not equal
             if (playerKnockPattern.Count != knockPattern.Count)
             {
@@ -353,7 +453,7 @@ namespace PDXUnderground.Interaction
                     }
                 }
             }
-            
+
             // Handle result
             if (patternCorrect)
             {
@@ -363,9 +463,8 @@ namespace PDXUnderground.Interaction
             {
                 OnIncorrectKnockPattern();
             }
-            
+
             // Reset for next attempt
-            StopListeningForKnock();
         }
 
         /// <summary>
@@ -378,10 +477,10 @@ namespace PDXUnderground.Interaction
             {
                 AudioSource.PlayClipAtPoint(correctPatternSound, hiddenDoor.transform.position);
             }
-            
+
             Debug.Log("Correct knock pattern!");
             OnSecretKnockCorrect?.Invoke();
-            
+
             // Open the door
             OpenDoor();
         }
@@ -396,10 +495,10 @@ namespace PDXUnderground.Interaction
             {
                 AudioSource.PlayClipAtPoint(wrongPatternSound, hiddenDoor.transform.position);
             }
-            
+
             Debug.Log("Incorrect knock pattern! Try again.");
             OnSecretKnockIncorrect?.Invoke();
-            
+
             // Visual feedback - maybe shake the door slightly
             StartCoroutine(ShakeDoor());
         }
@@ -415,31 +514,44 @@ namespace PDXUnderground.Interaction
         {
             if (doorOpen)
                 return;
-                
+
             doorOpen = true;
-            
+
             // Animate door opening
             StartCoroutine(AnimateDoorOpen());
-            
+
             // Play sound
             if (doorOpenSound != null)
             {
                 AudioSource.PlayClipAtPoint(doorOpenSound, hiddenDoor.transform.position);
             }
-            
+
+            // Turn on doorway light
             // Turn on doorway light
             if (doorwayLight != null)
             {
                 doorwayLight.enabled = true;
             }
-            
+
             // Fire event
             OnDoorOpened?.Invoke();
-            
+
             // Show interaction prompt
             if (playerInTriggerArea)
             {
                 ShowInteractionPrompt(true, "Press E to enter");
+            }
+        }
+        /// <summary>
+        /// Shows an interaction prompt to the player
+        /// </summary>
+        private void ShowInteractionPrompt(bool show, string text = "")
+        {
+            // In a full implementation, this would display UI prompt
+            // For now, we'll just log to console
+            if (show)
+            {
+                Debug.Log("Interaction prompt: " + text);
             }
         }
 
@@ -450,30 +562,29 @@ namespace PDXUnderground.Interaction
         {
             if (!doorOpen)
                 return;
-                
+
             doorOpen = false;
-            
             // Animate door closing
             StartCoroutine(AnimateDoorClose());
-            
+
             // Play sound
             if (doorCloseSound != null)
             {
                 AudioSource.PlayClipAtPoint(doorCloseSound, hiddenDoor.transform.position);
             }
-            
+
             // Turn off doorway light
             if (doorwayLight != null)
             {
                 doorwayLight.enabled = false;
             }
-            
+
+            // Fire event
             // Fire event
             OnDoorClosed?.Invoke();
         }
-
         /// <summary>
-        /// Coroutine to animate the door opening
+        /// Animates the door opening
         /// </summary>
         private IEnumerator AnimateDoorOpen()
         {
@@ -481,245 +592,413 @@ namespace PDXUnderground.Interaction
             {
                 float duration = 1f / doorOpenSpeed;
                 float elapsed = 0f;
-                
+
+                currentDoorState = DoorState.Opening;
+                OnDoorStateChanged?.Invoke(currentDoorState);
+
+                // Play door sound
+                PlayDoorSound(DoorSoundType.Open);
+
+                // Create dust particles for effect
+                if (doorDustParticles != null)
+                {
+                    doorDustParticles.Play();
+                }
+
+                // Start interior lighting transition
+                StartCoroutine(AdjustLightingForDoorState(true, duration));
+
                 while (elapsed < duration)
                 {
                     elapsed += Time.deltaTime;
-                    float t = Mathf.Clamp01(elapsed / duration);
-                    doorPivot.rotation = Quaternion.Slerp(doorClosedRotation, doorOpenRotation, t);
+                    float t = elapsed / duration;
+
+                    doorPivot.rotation = Quaternion.Lerp(doorClosedRotation, doorOpenRotation, t);
+
                     yield return null;
                 }
-                
+
                 doorPivot.rotation = doorOpenRotation;
-                
+
                 // Enable player passage
                 if (doorCollider != null)
                 {
                     doorCollider.isTrigger = true;
                 }
-                
-                // Play creaking sound
-                PlayDoorSound(DoorSoundType.Open);
-                
-                // Emit dust particles for period-appropriate effect
+
+                currentDoorState = DoorState.Open;
+                OnDoorStateChanged?.Invoke(currentDoorState);
+
+                // Enable special Gambler interaction
+                EnableGamblerPassage();
+            }
+        }
+
+        /// <summary>
+        /// Animates the door closing
+        /// </summary>
+        private IEnumerator AnimateDoorClose()
+        {
+            if (doorPivot != null)
+            {
+                float duration = 1f / doorOpenSpeed;
+                float elapsed = 0f;
+
+                // Play door sound
+                PlayDoorSound(DoorSoundType.Close);
+
+                // Create dust particles for effect
                 if (doorDustParticles != null)
                 {
                     doorDustParticles.Play();
                 }
-                
-                // Handle indoor/outdoor lighting transition
-                StartCoroutine(AdjustLightingForDoorState(true, duration));
-                
-                // Update door state
-                currentDoorState = DoorState.Open;
-                
-                // Notify any listeners
+
+                // Disable Gambler passage
+                DisableGamblerPassage();
+
+                // Start exterior lighting transition
+                StartCoroutine(AdjustLightingForDoorState(false, duration));
+
+                while (elapsed < duration)
+                {
+                    elapsed += Time.deltaTime;
+                    float t = elapsed / duration;
+
+                    doorPivot.rotation = Quaternion.Lerp(doorOpenRotation, doorClosedRotation, t);
+
+                    yield return null;
+                }
+
+                doorPivot.rotation = doorClosedRotation;
+
+                // Disable player passage
+                if (doorCollider != null)
+                {
+                    doorCollider.isTrigger = false;
+                }
+
+                currentDoorState = DoorState.Closed;
                 OnDoorStateChanged?.Invoke(currentDoorState);
-                
-                yield return new WaitForSeconds(0.5f);
-                
-                // Allow Gambler to use special abilities through the door
-                EnableGamblerPassage();
             }
         }
-    }
-    
-    /// <summary>
-    /// Animates the door closing over time
-    /// </summary>
-    private IEnumerator AnimateDoorClose(float duration = 1.0f)
-    {
-        if (doorPivot != null)
+
+        /// <summary>
+        /// Shakes the door as visual feedback
+        /// </summary>
+        private IEnumerator ShakeDoor()
         {
-            // Store original rotation
-            Quaternion doorClosedRotation = doorOriginalRotation;
-            Quaternion doorCurrentRotation = doorPivot.rotation;
-            
-            // Disable Gambler passage through door
-            DisableGamblerPassage();
-            
-            // Play creaking sound when starting to close
-            PlayDoorSound(DoorSoundType.Close);
-            
-            // Create dust effect
-            if (doorDustParticles != null)
+
+            Quaternion originalRotation = doorPivot.rotation;
+            float shakeTime = 0.5f;
+            float elapsed = 0f;
+
+            while (elapsed < shakeTime)
             {
-                doorDustParticles.Play();
+                elapsed += Time.deltaTime;
+                float shake = Mathf.Sin(elapsed * 30f) * 0.5f * (1f - elapsed / shakeTime);
+                doorPivot.rotation = originalRotation * Quaternion.Euler(0, shake * 2f, 0);
+
+                yield return null;
             }
-            
-            // Begin lighting transition back to exterior
-            StartCoroutine(AdjustLightingForDoorState(false, duration));
-            
-            // Update door state
-            currentDoorState = DoorState.Closing;
-            OnDoorStateChanged?.Invoke(currentDoorState);
-            
-            float elapsed = 0;
-            
+
+            // Reset to original rotation
+            doorPivot.rotation = originalRotation;
+        }
+
+        /// <summary>
+        /// Play a door-related sound
+        /// </summary>
+        private void PlayDoorSound(DoorSoundType soundType)
+        {
+            if (audioSource == null)
+                return;
+
+            AudioClip clipToPlay = null;
+
+            switch (soundType)
+            {
+                case DoorSoundType.Locked:
+                    clipToPlay = lockedSound;
+                    break;
+
+                case DoorSoundType.Unlock:
+                    clipToPlay = unlockSound;
+                    break;
+
+                case DoorSoundType.Open:
+                    clipToPlay = openSound;
+                    break;
+
+                case DoorSoundType.Close:
+                    clipToPlay = closeSound;
+                    break;
+
+                case DoorSoundType.Knock:
+                    clipToPlay = knockSound;
+                    break;
+            }
+
+            if (clipToPlay != null)
+            {
+                audioSource.pitch = UnityEngine.Random.Range(0.9f, 1.1f); // Slight variation for realism
+                audioSource.PlayOneShot(clipToPlay);
+            }
+        }
+
+        /// <summary>
+        /// Handles lighting transition between indoor/outdoor when door opens/closes
+        /// </summary>
+        private IEnumerator AdjustLightingForDoorState(bool isOpening, float duration)
+        {
+            // Get references to relevant lighting components
+            Light[] speakeasyLights = speakeasyRoot?.GetComponentsInChildren<Light>();
+
+            // Check for speakeasy lights
+            if (speakeasyLights == null || speakeasyLights.Length == 0)
+                yield break;
+
+            // Store original light values
+            Dictionary<Light, float> originalIntensities = new Dictionary<Light, float>();
+            foreach (Light light in speakeasyLights)
+            {
+                originalIntensities[light] = light.intensity;
+            }
+            // Store original lighting values
+            // Store original volume weight
+            float originalVolumeWeight = 0f;
+
+            // Switch URP camera profile first for quick effect
+            if (cameraSetup != null)
+            {
+                cameraSetup.SwitchToEnvironment(isOpening ?
+                    PDXUnderground.Core.URPCameraSetup.EnvironmentType.Speakeasy :
+                    PDXUnderground.Core.URPCameraSetup.EnvironmentType.Streets);
+            }
+
+            // Use cached Volume component for gradual transition
+            if (cameraVolumeComponent != null)
+            {
+                originalVolumeWeight = cameraVolumeComponent.weight;
+
+                if (cameraVolumeComponent.profile == null)
+                {
+                    Debug.LogWarning("Volume component on main camera has no profile assigned. Lighting transition will only affect lights, not post-processing.");
+                }
+            }
+            else
+            {
+                // Try to get the component again in case it was added after initialization
+                // Try to get the component again in case it was added after initialization
+                cameraVolumeComponent = Camera.main?.GetComponent<Volume>();
+                if (cameraVolumeComponent != null)
+                {
+                    originalVolumeWeight = cameraVolumeComponent.weight;
+
+                    if (cameraVolumeComponent.profile == null)
+                    {
+                        Debug.LogWarning("Volume component on main camera has no profile assigned. Lighting transition will only affect lights, not post-processing.");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning("Volume component not found on main camera. Lighting transition will only affect lights, not post-processing.");
+                }
+            }
+
+            // Target values based on door state
+            // For indoor scenes (when door is opening), we use a higher weight (0.7) to enhance atmospheric effects
+            // For outdoor scenes (when door is closing), we use a lower weight (0.3) for a more natural look
+            float targetVolumeWeight = isOpening ? indoorVolumeWeight : outdoorVolumeWeight;
+            float elapsed = 0f;
             while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
                 float t = elapsed / duration;
-                
-                // Use smooth step for more realistic door movement
                 float smoothT = Mathf.SmoothStep(0, 1, t);
-                
-                // Rotate door
-                doorPivot.rotation = Quaternion.Slerp(doorCurrentRotation, doorClosedRotation, smoothT);
-                
+
+                // Adjust speakeasy lights based on door state
+                foreach (Light light in speakeasyLights)
+                {
+                    if (isOpening)
+                    {
+                        // When opening, lights gradually come on
+                        light.intensity = Mathf.Lerp(0.2f * originalIntensities[light], originalIntensities[light], smoothT);
+                    }
+                    else
+                    {
+                        // When closing, lights gradually dim
+                        light.intensity = Mathf.Lerp(originalIntensities[light], 0.2f * originalIntensities[light], smoothT);
+                    }
+                }
+
+                // Adjust Volume weight for indoor/outdoor transition
+                if (cameraVolumeComponent != null)
+                {
+                    // URP Volume weight controls the influence of the post-processing effects
+                    // Higher weight (0.7) for indoor scene to enhance indoor atmospheric effects
+                    // Lower weight (0.3) for outdoor scene for a more natural outdoor look
+                    cameraVolumeComponent.weight = Mathf.Lerp(originalVolumeWeight, targetVolumeWeight, smoothT);
+                }
                 yield return null;
             }
-            
-            // Ensure door is fully closed
-            doorPivot.rotation = doorClosedRotation;
-            
-            // Re-enable collider to block passage
-            if (doorCollider != null)
+
+            // Ensure final state is set correctly
+            if (cameraVolumeComponent != null)
             {
-                doorCollider.isTrigger = false;
+                cameraVolumeComponent.weight = targetVolumeWeight;
             }
-            
-            // Update door state
-            currentDoorState = DoorState.Closed;
-            OnDoorStateChanged?.Invoke(currentDoorState);
         }
-    }
-    
-    /// <summary>
-    /// Plays appropriate door sound effects based on the action
-    /// </summary>
-    private void PlayDoorSound(DoorSoundType soundType)
-    {
-        if (audioSource == null)
-            return;
-        
-        AudioClip clipToPlay = null;
-        
-        switch (soundType)
+
+        #endregion
+
+        #region Character Interactions
+        /// <summary>
+        /// Enables special interactions for the Gambler character
+        /// </summary>
+        private void EnableGamblerPassage()
         {
-            case DoorSoundType.Locked:
-                clipToPlay = lockedSound;
-                break;
-                
-            case DoorSoundType.Unlock:
-                clipToPlay = unlockSound;
-                break;
-                
-            case DoorSoundType.Open:
-                clipToPlay = openSound;
-                break;
-                
-            case DoorSoundType.Close:
-                clipToPlay = closeSound;
-                break;
-                
-            case DoorSoundType.Knock:
-                clipToPlay = knockSound;
-                break;
-        }
-        
-        if (clipToPlay != null)
-        {
-            audioSource.pitch = Random.Range(0.9f, 1.1f); // Slight variation for realism
-            audioSource.PlayOneShot(clipToPlay);
-        }
-    }
-    
-    /// <summary>
-    /// Handles lighting transition between indoor/outdoor when door opens/closes
-    /// </summary>
-    private IEnumerator AdjustLightingForDoorState(bool isOpening, float duration)
-    {
-        // Get references to relevant lighting components
-        Light[] speakeasyLights = speakeasyRoot?.GetComponentsInChildren<Light>();
-        UnityEngine.Rendering.Volume postProcessVolume = Camera.main?.GetComponent<UnityEngine.Rendering.Volume>();
-        
-        if (speakeasyLights == null || speakeasyLights.Length == 0)
-            yield break;
-            
-        // Store original light values
-        Dictionary<Light, float> originalIntensities = new Dictionary<Light, float>();
-        foreach (Light light in speakeasyLights)
-        {
-            originalIntensities[light] = light.intensity;
-        }
-        
-        // Store original post-processing values
-        float originalPostProcessWeight = postProcessVolume != null ? postProcessVolume.weight : 0f;
-        
-        // Target values based on door state
-        float targetPostProcessWeight = isOpening ? 0.7f : 0.3f;  // Indoor vs outdoor post-processing
-        
-        float elapsed = 0f;
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            float t = elapsed / duration;
-            float smoothT = Mathf.SmoothStep(0, 1, t);
-            
-            // Adjust speakeasy lights based on door state
-            foreach (Light light in speakeasyLights)
+            // Find Gambler character in scene
+            IGamblerCharacter gambler = FindObjectOfType<MonoBehaviour>() as IGamblerCharacter;
+            if (gambler != null)
             {
-                if (isOpening)
+                // Notify Gambler that this entrance is now available
+                SendMessage("OnSpeakeasyEntranceAvailable", this, SendMessageOptions.DontRequireReceiver);
+
+                // Optional: Apply any Gambler-specific effects
+                if (gamblerDetectionTrigger != null)
                 {
-                    // When opening, lights gradually come on
-                    light.intensity = Mathf.Lerp(0.2f * originalIntensities[light], originalIntensities[light], smoothT);
-                }
-                else
-                {
-                    // When closing, lights gradually dim
-                    light.intensity = Mathf.Lerp(originalIntensities[light], 0.2f * originalIntensities[light], smoothT);
+                    gamblerDetectionTrigger.enabled = true;
                 }
             }
-            
-            // Adjust post-processing for indoor/outdoor transition
-            if (postProcessVolume != null)
-            {
-                postProcessVolume.weight = Mathf.Lerp(originalPostProcessWeight, targetPostProcessWeight, smoothT);
-            }
-            
-            yield return null;
         }
-    }
-    
-    /// <summary>
-    /// Enables special interactions for the Gambler character
-    /// </summary>
-    private void EnableGamblerPassage()
-    {
-        // Find Gambler character in scene
-        GamblerCharacter gambler = FindObjectOfType<GamblerCharacter>();
-        
-        if (gambler != null)
+
+        /// <summary>
+        /// Disables special interactions for the Gambler character
+        /// </summary>
+        private void DisableGamblerPassage()
         {
-            // Notify Gambler that this entrance is now available
-            SendMessage("OnSpeakeasyEntranceAvailable", this, SendMessageOptions.DontRequireReceiver);
-            
-            // Optional: Apply any Gambler-specific effects
-            if (gamblerDetectionTrigger != null)
+            // Find Gambler character in scene
+            IGamblerCharacter gambler = FindObjectOfType<MonoBehaviour>() as IGamblerCharacter;
+            if (gambler != null)
             {
-                gamblerDetectionTrigger.enabled = true;
+                // Notify Gambler that this entrance is now unavailable
+                SendMessage("OnSpeakeasyEntranceClosed", this, SendMessageOptions.DontRequireReceiver);
+
+                // Optional: Remove any Gambler-specific effects
+                if (gamblerDetectionTrigger != null)
+                {
+                    gamblerDetectionTrigger.enabled = false;
+                }
             }
         }
-    }
-    
-    /// <summary>
-    /// Disables special interactions for the Gambler character
-    /// </summary>
-    private void DisableGamblerPassage()
-    {
-        // Find Gambler character in scene
-        GamblerCharacter gambler = FindObjectOfType<GamblerCharacter>();
         
-        if (gambler != null)
+        #endregion // Character Interactions
+        
+        #region Visual Effects
+        
+        /// <summary>
+        /// Creates dust particles for door effects
+        /// </summary>
+        private void CreateDustParticles()
         {
-            // Notify Gambler that this entrance is now unavailable
-            SendMessage("OnSpeakeasyEntranceClosed", this, SendMessageOptions.DontRequireReceiver);
-            
-            // Optional: Remove any Gambler-specific effects
-            if (gamblerDetectionTrigger != null)
+            GameObject particleObj = new GameObject("DoorDustParticles");
+            particleObj.transform.SetParent(doorPivot);
+            particleObj.transform.localPosition = Vector3.zero;
+
+            dustParticles = particleObj.AddComponent<ParticleSystem>();
+            var main = dustParticles.main;
+            main.duration = 1f;
+            main.loop = false;
+
+            // Configure particle system for dust effect
+            var emission = dustParticles.emission;
+            emission.rateOverTime = 20f;
+
+            var shape = dustParticles.shape;
+            shape.shapeType = ParticleSystemShapeType.Box;
+            shape.scale = new Vector3(0.5f, 2f, 0.1f);
+        }
+
+        /// <summary>
+        /// Creates a light source for the doorway
+        /// </summary>
+        private void CreateDoorwayLight()
+        {
+            if (doorwayLight == null)
             {
-                gamblerDetectionTrigger.enabled = false;
+                GameObject lightObj = new GameObject("DoorwayLight");
+                lightObj.transform.SetParent(doorPivot);
+                lightObj.transform.localPosition = new Vector3(0, 2f, 0);
+
+                doorwayLight = lightObj.AddComponent<Light>();
+                doorwayLight.type = LightType.Point;
+                doorwayLight.color = new Color(1f, 0.95f, 0.8f); // Warm light
+                doorwayLight.intensity = 1.5f;
+                doorwayLight.range = 5f;
+                doorwayLight.enabled = false;
             }
         }
+
+        /// <summary>
+        /// Activates lanterns in the environment
+        /// </summary>
+        private void ActivateLanterns()
+        {
+            foreach (GameObject lantern in lanterns)
+            {
+                if (lantern != null)
+                {
+                    lantern.SetActive(true);
+                    Light lanternLight = lantern.GetComponentInChildren<Light>();
+                    if (lanternLight != null)
+                    {
+                        lanternLight.enabled = true;
+                    }
+                }
+            }
+        }
+        
+        #endregion // Visual Effects
+
+        #region Interaction Methods
+        
+        /// <summary>
+        /// Handles player entering the speakeasy
+        /// </summary>
+        private void EnterSpeakeasy()
+        {
+            // Handle player entering the speakeasy
+            if (tunnelEntranceRevealed)
+            {
+                // If tunnel entrance is revealed, allow transition
+                if (tunnelAccessRequiresItems)
+                {
+                    bool hasAllItems = true;
+                    foreach (CollectibleItem item in requiredItems)
+                    {
+                        // Replace with your actual inventory system
+                        // if (!PlayerInventory.Instance.HasItem(item.itemId))
+                        // {
+                        //     hasAllItems = false;
+                        //     break;
+                        // }
+                    }
+
+                    if (!hasAllItems)
+                    {
+                        // Play locked sound and show message
+                        PlayDoorSound(DoorSoundType.Locked);
+                        Debug.Log("You need all required items to enter the tunnels.");
+                        return;
+                    }
+                }
+
+                // Trigger level transition
+                OnPlayerEnteredTunnel?.Invoke();
+                SceneManager.LoadScene(nextLevelName);
+            }
+        }
+        
+        #endregion // Interaction Methods
     }
+} // end of namespace

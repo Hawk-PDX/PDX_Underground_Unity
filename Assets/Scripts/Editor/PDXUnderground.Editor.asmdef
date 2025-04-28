@@ -1,0 +1,24 @@
+{
+    "name": "PDXUnderground.Editor",
+    "rootNamespace": "PDXUnderground.Editor",
+    "references": [
+        "GUID:6055be8ebefd69e48b49212b09b47b2f",
+        "PDXUnderground.Core",
+        "PDXUnderground.Models",
+        "PDXUnderground.Player",
+        "PDXUnderground.Combat",
+        "PDXUnderground.Systems"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
+

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using PDXUnderground.Models;
 
 namespace PDXUnderground.Models
 {
@@ -14,8 +15,10 @@ namespace PDXUnderground.Models
     {
         #region Properties
 
-        // Event when item is used
+        // Events
         public event Action<ConsumableItem> OnItemUsed;
+        // Logger for decoupling from Unity's Debug class
+        public static Interfaces.ILogger Logger { get; set; }
 
         // Dictionary to track cooldowns per character
         private Dictionary<int, float> lastUseTimeByCharacter = new Dictionary<int, float>();
@@ -34,7 +37,7 @@ namespace PDXUnderground.Models
         // Effect properties
         [Header("Effect Properties")]
         [Tooltip("Cooldown between uses (in seconds)")]
-        public float Cooldown;
+        public new float Cooldown;
 
         [Tooltip("Duration of effects (in seconds)")]
         public float EffectDuration;
@@ -42,6 +45,7 @@ namespace PDXUnderground.Models
         [Tooltip("Status effects to apply")]
         public string[] StatusEffects;
 
+        // Stat boost structure
         // Stat boost structure
         [Serializable]
         public struct StatBonus
@@ -56,26 +60,6 @@ namespace PDXUnderground.Models
 
         #endregion
 
-        #region Unity Lifecycle
-
-        private void OnEnable()
-        {
-            if (GameManager.Instance != null)
-            {
-                GameManager.Instance.OnGameTimeUpdate.AddListener(UpdateCooldowns);
-            }
-        }
-
-        private void OnDisable()
-        {
-            if (GameManager.Instance != null)
-            {
-                GameManager.Instance.OnGameTimeUpdate.RemoveListener(UpdateCooldowns);
-            }
-        }
-
-        #endregion
-
         #region Resource Restoration
         
         /// <summary>
@@ -83,7 +67,7 @@ namespace PDXUnderground.Models
         /// </summary>
         /// <param name="character">Character to restore energy for</param>
         /// <returns>Amount of energy restored</returns>
-        private int ApplyEnergyRestoration(Character character)
+        private int ApplyEnergyRestoration(CharacterData character)
         {
             if (EnergyRestoration <= 0 || character == null || character.Stats == null)
                 return 0;
@@ -97,7 +81,7 @@ namespace PDXUnderground.Models
             if (potentialRestore > 0)
             {
                 character.Stats.CurrentEnergy += potentialRestore;
-                Debug.Log($"{character.CharacterName} restored {potentialRestore} energy from {ItemName}");
+                Logger?.Log($"{character.CharacterName} restored {potentialRestore} energy from {ItemName}");
                 return potentialRestore;
             }
             
@@ -109,7 +93,7 @@ namespace PDXUnderground.Models
         /// </summary>
         /// <param name="character">Character to restore health for</param>
         /// <returns>Amount of health restored</returns>
-        private int ApplyHealthRestoration(Character character)
+        private int ApplyHealthRestoration(CharacterData character)
         {
             if (HealthRestoration <= 0 || character == null || character.Stats == null)
                 return 0;
@@ -123,7 +107,7 @@ namespace PDXUnderground.Models
             if (potentialRestore > 0)
             {
                 character.Stats.CurrentHealth += potentialRestore;
-                Debug.Log($"{character.CharacterName} restored {potentialRestore} health from {ItemName}");
+                Logger?.Log($"{character.CharacterName} restored {potentialRestore} health from {ItemName}");
                 return potentialRestore;
             }
             
@@ -135,7 +119,7 @@ namespace PDXUnderground.Models
         /// </summary>
         /// <param name="character">Character to restore mana for</param>
         /// <returns>Amount of mana restored</returns>
-        private int ApplyManaRestoration(Character character)
+        private int ApplyManaRestoration(CharacterData character)
         {
             if (ManaRestoration <= 0 || character == null || character.Stats == null)
                 return 0;
@@ -149,7 +133,7 @@ namespace PDXUnderground.Models
             if (potentialRestore > 0)
             {
                 character.Stats.CurrentMana += potentialRestore;
-                Debug.Log($"{character.CharacterName} restored {potentialRestore} mana from {ItemName}");
+                Logger?.Log($"{character.CharacterName} restored {potentialRestore} mana from {ItemName}");
                 return potentialRestore;
             }
             
@@ -165,7 +149,7 @@ namespace PDXUnderground.Models
         /// </summary>
         /// <param name="character">Character to apply effects to</param>
         /// <returns>True if any effects were applied</returns>
-        private bool ApplyEffects(Character character)
+        private bool ApplyEffects(CharacterData character, float currentTime)
         {
             if (character == null)
                 return false;
@@ -178,7 +162,7 @@ namespace PDXUnderground.Models
             int energyRestored = ApplyEnergyRestoration(character);
             
             // Apply status effects
-            bool statusEffectsApplied = ApplyStatusEffects(character);
+            bool statusEffectsApplied = ApplyStatusEffects(character, currentTime);
             
             // Apply temporary stat boosts
             bool boostsApplied = ApplyTemporaryBoosts(character);
@@ -195,7 +179,7 @@ namespace PDXUnderground.Models
         /// </summary>
         /// <param name="character">Character to apply effects to</param>
         /// <returns>True if any status effects were applied</returns>
-        private bool ApplyStatusEffects(Character character)
+        private bool ApplyStatusEffects(CharacterData character, float currentTime)
         {
             if (StatusEffects == null || StatusEffects.Length == 0 || character == null)
                 return false;
@@ -205,11 +189,19 @@ namespace PDXUnderground.Models
             foreach (string effect in StatusEffects)
             {
                 // Apply each status effect to the character
-                bool applied = character.ApplyStatusEffect(effect, EffectDuration, ItemName);
+                var statusEffect = new StatusEffect
+                {
+                    EffectName = effect,
+                    Description = $"Effect from {ItemName}",
+                    Duration = EffectDuration,
+                    Source = ItemName,
+                    StartTime = currentTime
+                };
+                bool applied = character.ApplyStatusEffect(statusEffect, EffectDuration, ItemName);
                 
                 if (applied)
                 {
-                    Debug.Log($"Applied status effect '{effect}' to {character.CharacterName} for {EffectDuration}s");
+                    Logger?.Log($"Applied status effect '{effect}' to {character.CharacterName} for {EffectDuration}s");
                     anyEffectApplied = true;
                 }
             }
@@ -222,7 +214,7 @@ namespace PDXUnderground.Models
         /// </summary>
         /// <param name="character">Character to apply boosts to</param>
         /// <returns>True if any stat boosts were applied</returns>
-        private bool ApplyTemporaryBoosts(Character character)
+        private bool ApplyTemporaryBoosts(CharacterData character)
         {
             if (TemporaryBoosts == null || TemporaryBoosts.Count == 0 || character == null || character.Stats == null)
                 return false;
@@ -235,19 +227,15 @@ namespace PDXUnderground.Models
                     continue;
                     
                 // Apply each temporary stat boost
-                bool applied = character.Stats.AddStatBoost(
+                character.Stats.AddStatBoost(
                     boost.StatType,
                     boost.Value,
                     boost.IsPercentage,
                     EffectDuration,
                     $"Consumable:{ItemName}"
                 );
-                
-                if (applied)
-                {
-                    Debug.Log($"Applied {boost.Value}{(boost.IsPercentage ? "%" : "")} {boost.StatType} boost to {character.CharacterName} for {EffectDuration}s");
-                    anyBoostApplied = true;
-                }
+                Logger?.Log($"Applied {boost.Value}{(boost.IsPercentage ? "%" : "")} {boost.StatType} boost to {character.CharacterName} for {EffectDuration}s");
+                anyBoostApplied = true;
             }
             
             return anyBoostApplied;
@@ -257,7 +245,7 @@ namespace PDXUnderground.Models
         /// Remove expired effects from a character
         /// </summary>
         /// <param name="character">Character to remove effects from</param>
-        public void RemoveExpiredEffects(Character character)
+        public void RemoveExpiredEffects(CharacterData character)
         {
             if (character == null)
                 return;
@@ -267,14 +255,15 @@ namespace PDXUnderground.Models
             {
                 foreach (string effect in StatusEffects)
                 {
-                    character.RemoveExpiredStatusEffect(effect, ItemName);
+                    // Let Character handle expired effects removal
+                    character.RemoveExpiredStatusEffect();
                 }
             }
             
             // Remove expired stat boosts
             if (character.Stats != null && TemporaryBoosts != null && TemporaryBoosts.Count > 0)
             {
-                character.Stats.RemoveExpiredStatBoosts($"Consumable:{ItemName}");
+                character.Stats.RemoveExpiredStatBoosts(Time.time);
             }
         }
 
@@ -283,22 +272,23 @@ namespace PDXUnderground.Models
         #region Cooldown Management
         
         /// <summary>
+        /// <summary>
         /// Put the item on cooldown for a character
         /// </summary>
-        /// <param name="characterId">ID of character using the item</param>
-        private void StartCooldown(int characterId)
+        /// <param name="currentTime">Current game time</param>
+        private void StartCooldown(int characterId, float currentTime)
         {
             if (Cooldown <= 0f)
                 return;
                 
-            lastUseTimeByCharacter[characterId] = Time.time;
-            Debug.Log($"{ItemName} is now on cooldown for {Cooldown}s");
+            lastUseTimeByCharacter[characterId] = currentTime;
+            Logger?.Log($"{ItemName} is now on cooldown for {Cooldown}s");
         }
         
         /// <summary>
         /// Update cooldowns for all characters
         /// </summary>
-        public void UpdateCooldowns()
+        public void UpdateCooldowns(float currentTime)
         {
             if (Cooldown <= 0f || lastUseTimeByCharacter.Count == 0)
                 return;
@@ -307,7 +297,7 @@ namespace PDXUnderground.Models
             List<int> expiredCooldowns = new List<int>();
             foreach (var entry in lastUseTimeByCharacter)
             {
-                if (Time.time - entry.Value >= Cooldown)
+                if (currentTime - entry.Value >= Cooldown)
                 {
                     expiredCooldowns.Add(entry.Key);
                 }
@@ -317,12 +307,50 @@ namespace PDXUnderground.Models
             foreach (int characterId in expiredCooldowns)
             {
                 lastUseTimeByCharacter.Remove(characterId);
-                Debug.Log($"{ItemName} cooldown expired for character ID {characterId}");
+                Logger?.Log($"{ItemName} cooldown expired for character ID {characterId}");
             }
         }
 
+        /// <summary>
+        /// Check if the item is on cooldown for a character
+        /// </summary>
+        /// <param name="characterId">ID of character using the item</param>
+        /// <param name="currentTime">Current game time</param>
+        /// <returns>True if on cooldown</returns>
+        private bool IsOnCooldown(int characterId, float currentTime)
+        {
+            if (Cooldown <= 0f)
+                return false;
+                
+            if (lastUseTimeByCharacter.TryGetValue(characterId, out float lastUseTime))
+            {
+                return (currentTime - lastUseTime) < Cooldown;
+            }
+            
+            return false;
+        }
+        
+        /// <summary>
+        /// Get the remaining cooldown time for a character
+        /// </summary>
+        /// <param name="characterId">ID of character using the item</param>
+        /// <param name="currentTime">Current game time</param>
+        /// <returns>Remaining cooldown time in seconds</returns>
+        private float GetRemainingCooldown(int characterId, float currentTime)
+        {
+            if (Cooldown <= 0f)
+                return 0f;
+                
+            if (lastUseTimeByCharacter.TryGetValue(characterId, out float lastUseTime))
+            {
+                return Mathf.Max(0f, Cooldown - (currentTime - lastUseTime));
+            }
+            
+            return 0f;
+        }
+        
         #endregion
-
+        
         #region Item Overrides
         
         /// <summary>
@@ -330,49 +358,59 @@ namespace PDXUnderground.Models
         /// </summary>
         /// <param name="character">Character using the item</param>
         /// <returns>True if item was used successfully</returns>
-        public override bool Use(Character character)
+        public override bool Use(CharacterData character, float currentTime)
         {
             // Check for null character or broken item
             if (character == null || IsBroken)
             {
-                Debug.LogWarning($"Cannot use {ItemName}: character is null or item is broken");
+                Logger?.LogWarning($"Cannot use {ItemName}: character is null or item is broken");
                 return false;
             }
                 
             // Check level requirement
             if (character.Level < RequiredLevel)
             {
-                Debug.Log($"Cannot use {ItemName}: requires level {RequiredLevel}");
+                Logger?.Log($"Cannot use {ItemName}: requires level {RequiredLevel}");
                 return false;
             }
             
             // Check if item is on cooldown
-            if (IsOnCooldown(character.Id))
+            if (IsOnCooldown(character.Id, currentTime))
             {
-                float remaining = GetRemainingCooldown(character.Id);
-                Debug.Log($"Cannot use {ItemName}: still on cooldown for {remaining:F1}s");
+                float remainingTime = GetRemainingCooldown(character.Id, currentTime);
+                Logger?.Log($"Cannot use {ItemName}: on cooldown for {remainingTime:F1} more seconds");
                 return false;
             }
             
             // Apply all effects
-            bool effectApplied = ApplyEffects(character);
-            
-            if (effectApplied)
+            // Apply all effects
+            bool effectsApplied = ApplyEffects(character, currentTime);
+            // If any effects were applied
+            if (effectsApplied)
             {
-                // Start cooldown
-                StartCooldown(character.Id);
+                // Put item on cooldown
+                StartCooldown(character.Id, currentTime);
                 
-                // Trigger the item used event
+                // Reduce quantity if consumable
+                if (IsConsumable)
+                {
+                    Quantity--;
+                }
+                
+                // Reduce durability if applicable
+                if (MaxDurability > 0)
+                {
+                    CurrentDurability--;
+                }
+                
+                // Trigger events
                 OnItemUsed?.Invoke(this);
                 
-                // Reduce quantity
-                Quantity--;
-                
-                Debug.Log($"{character.CharacterName} used {ItemName}");
+                Logger?.Log($"{character.CharacterName} used {ItemName}");
                 return true;
             }
             
-            Debug.Log($"{ItemName} had no effect on {character.CharacterName}");
+            Logger?.Log($"{ItemName} had no effect on {character.CharacterName}");
             return false;
         }
         

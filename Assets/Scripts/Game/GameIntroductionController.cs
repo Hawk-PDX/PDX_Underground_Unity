@@ -4,14 +4,19 @@ using TMPro;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq; // For LINQ operations
-
-/// <summary>
-/// GameIntroductionController manages the opening sequence for PDX Underground,
-/// handling narrative elements, camera movement, and scene transitions with
-/// period-appropriate styling for 1800s Portland.
-/// </summary>
-public class GameIntroductionController : MonoBehaviour
+using System.Linq;
+using PDXUnderground.Core;
+using PDXUnderground.Core.Models;  // For TimeOfDay and GameState enums
+using PDXUnderground.Core.Data;
+using PDXUnderground.Core.Interfaces; // For IGaslightFlicker interface
+namespace PDXUnderground.Game
+{
+    /// <summary>
+    /// GameIntroductionController manages the opening sequence for PDX Underground,
+    /// handling narrative elements, camera movement, and scene transitions with
+    /// period-appropriate styling for 1800s Portland.
+    /// </summary>
+    public class GameIntroductionController : MonoBehaviour
 {
     #region Serialized Properties
 
@@ -59,7 +64,7 @@ public class GameIntroductionController : MonoBehaviour
 
     #region Private Fields
 
-    private GameManager gameManager;
+    private PDXUnderground.Core.GameManager gameManager; // Core GameManager reference
     private Coroutine currentCoroutine;
     private List<string> narrativeSequence;
     private int currentNarrativeIndex = 0;
@@ -73,14 +78,12 @@ public class GameIntroductionController : MonoBehaviour
     private float gaslightRange = 15.0f;
     #endregion
 
-#endregion
-
     #region Lifecycle Methods
 
     private void Start()
     {
         // Initialize references
-        gameManager = FindObjectOfType<GameManager>();
+        gameManager = FindObjectOfType<PDXUnderground.Core.GameManager>();
 
         // Prepare UI elements
         fadeOverlay.color = new Color(0, 0, 0, 1); // Start with black screen
@@ -195,6 +198,8 @@ public class GameIntroductionController : MonoBehaviour
         yield return StartCoroutine(StartNarrativeSequence());
     }
 
+    #endregion
+    
     #region Private Methods
 
     /// <summary>
@@ -373,7 +378,7 @@ public class GameIntroductionController : MonoBehaviour
 
         if (gameManager != null)
         {
-            gameManager.SetGameState(GameState.Gameplay);
+            gameManager.SetGameState(PDXUnderground.Core.Models.GameState.Playing);
         }
 
         yield return StartCoroutine(FadeIn());
@@ -406,7 +411,9 @@ public class GameIntroductionController : MonoBehaviour
         // Notify game manager of time change
         if (gameManager != null)
         {
-            gameManager.SetTimeOfDay(isNight ? TimeOfDay.Night : TimeOfDay.Day);
+            gameManager.SetTimeOfDay(isNight ? 
+                PDXUnderground.Core.Models.TimeOfDay.Night : 
+                PDXUnderground.Core.Models.TimeOfDay.Day);
         }
     }
 
@@ -425,11 +432,15 @@ public class GameIntroductionController : MonoBehaviour
         {
             light.intensity = gaslightIntensity * intensityMultiplier;
 
-            // Update flicker component if present
-            GaslightFlicker flickerComponent = light.GetComponent<GaslightFlicker>();
+            // Update flicker component if present, using interface
+            IGaslightFlicker flickerComponent = light.GetComponent<IGaslightFlicker>();
             if (flickerComponent != null)
             {
-                flickerComponent.SetFlickerIntensity(0.2f * intensityMultiplier);
+                // Use the correct time of day method which handles intensity internally
+                flickerComponent.SetTimeOfDay(isNightTime ? 0.0f : 0.5f);
+                
+                // If stormy weather, add some flicker effect
+                flickerComponent.SetWeatherEffect(1.0f);
             }
         }
     }
@@ -457,10 +468,10 @@ public class GameIntroductionController : MonoBehaviour
     /// <summary>
     /// Handles game state changes from the game manager.
     /// </summary>
-    private void OnGameStateChanged(GameState newState)
+    private void OnGameStateChanged(PDXUnderground.Core.Models.GameState newState)
     {
         // React to game state changes if needed
-        if (newState == GameState.MainMenu)
+        if (newState == PDXUnderground.Core.Models.GameState.MainMenu)
         {
             // Reset introduction if player returns to main menu
             if (introductionActive)
@@ -470,4 +481,5 @@ public class GameIntroductionController : MonoBehaviour
         }
     }
     #endregion
+    }
 }

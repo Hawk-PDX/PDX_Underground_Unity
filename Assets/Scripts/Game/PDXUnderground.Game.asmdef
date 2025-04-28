@@ -1,0 +1,19 @@
+{
+    "name": "PDXUnderground.Game",
+    "rootNamespace": "PDXUnderground.Game",
+    "references": [
+        "PDXUnderground.Core",
+        "PDXUnderground.Models",
+        "PDXUnderground.Player"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
+

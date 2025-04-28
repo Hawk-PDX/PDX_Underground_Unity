@@ -1,0 +1,30 @@
+TextMeshPro Package Installation Instructions
+============================================
+
+The errors in PDXUndergroundDebugger.cs related to TextMeshProUGUI and TMP_Dropdown are due to the TextMeshPro package not being properly installed or referenced in your Unity project.
+
+To fix this issue:
+
+1. Open your Unity project
+2. Go to Window > Package Manager
+3. In the Package Manager window:
+   - Click the "+" button in the top-left corner
+   - Select "Add package from Unity Registry"
+   - Search for "TextMeshPro"
+   - Select the package and click "Install"
+
+4. After installation, Unity will prompt you to import the TextMeshPro Essential Resources
+   - Click "Import TMP Essentials" when prompted
+   - Optionally, you can also import the examples
+
+5. Restart Unity or reload the project
+
+After completing these steps, the TextMeshPro types (TextMeshProUGUI and TMP_Dropdown) should be properly recognized in your scripts, and the compilation errors should be resolved.
+
+Note: The code in PDXUndergroundDebugger.cs is already correctly written with the proper using directive:
+```csharp
+using TMPro;
+```
+
+No changes to the code are necessary once the TextMeshPro package is properly installed.
+

@@ -1,158 +1,4 @@
 using UnityEngine;
-
-namespace PDXUnderground.Core
-{
-    /// <summary>
-    /// Base class for setting up game scenes in PDX Underground.
-    /// Provides common functionality for initializing game components and environments.
-    /// </summary>
-    public class GameSceneSetup : MonoBehaviour
-    {
-        [Header("Scene Configuration")]
-        [Tooltip("Whether debug mode is enabled")]
-        [SerializeField] protected bool isDebugMode = false;
-        
-        [Tooltip("Whether test mode is enabled")]
-        [SerializeField] protected bool isTestMode = false;
-        
-        [Tooltip("Whether to automatically initialize on start")]
-        [SerializeField] protected bool autoInitialize = true;
-        
-        [Header("Environment")]
-        [Tooltip("Available environment names")]
-        [SerializeField] protected string[] availableEnvironments = { "Streets", "Tunnels", "Speakeasy" };
-        
-        [Tooltip("Default environment index")]
-        [SerializeField] protected int defaultEnvironmentIndex = 0;
-        
-        [Header("References")]
-        [Tooltip("Reference to the player prefab")]
-        [SerializeField] protected GameObject playerPrefab;
-        
-        [Tooltip("Reference to the main game controller prefab")]
-        [SerializeField] protected GameObject mainGameControllerPrefab;
-        
-        protected GameObject playerInstance;
-        protected GameObject mainGameControllerInstance;
-        protected int currentEnvironmentIndex;
-        
-        /// <summary>
-        /// Sets up the scene on start if auto-initialize is enabled
-        /// </summary>
-        protected virtual void Start()
-        {
-            if (autoInitialize)
-            {
-                InitializeScene();
-            }
-        }
-        
-        /// <summary>
-        /// Initializes the scene with all required components
-        /// </summary>
-        public virtual void InitializeScene()
-        {
-            Debug.Log("Initializing game scene...");
-            
-            // Create main game controller
-            CreateMainGameController();
-            
-            // Create player
-            CreatePlayer();
-            
-            // Set initial environment
-            SetEnvironment(defaultEnvironmentIndex);
-            
-            Debug.Log("Scene initialization complete.");
-        }
-        
-        /// <summary>
-        /// Creates the main game controller
-        /// </summary>
-        protected virtual void CreateMainGameController()
-        {
-            if (mainGameControllerPrefab != null)
-            {
-                mainGameControllerInstance = Instantiate(mainGameControllerPrefab);
-                mainGameControllerInstance.name = "MainGameController";
-                
-                Debug.Log("Created MainGameController");
-            }
-            else
-            {
-                Debug.LogError("MainGameController prefab is not assigned.");
-            }
-        }
-        
-        /// <summary>
-        /// Creates the player character
-        /// </summary>
-        protected virtual void CreatePlayer()
-        {
-            if (playerPrefab != null)
-            {
-                Vector3 spawnPosition = Vector3.zero;
-                
-                // Try to find a spawn point
-                GameObject spawnPoint = GameObject.Find("PlayerSpawn");
-                if (spawnPoint != null)
-                {
-                    spawnPosition = spawnPoint.transform.position;
-                }
-                
-                playerInstance = Instantiate(playerPrefab, spawnPosition, Quaternion.identity);
-                playerInstance.name = "Player";
-                
-                Debug.Log("Created Player at " + spawnPosition);
-            }
-            else
-            {
-                Debug.LogError("Player prefab is not assigned.");
-            }
-        }
-        
-        /// <summary>
-        /// Sets the active environment
-        /// </summary>
-        public virtual void SetEnvironment(int environmentIndex)
-        {
-            if (environmentIndex >= 0 && environmentIndex < availableEnvironments.Length)
-            {
-                currentEnvironmentIndex = environmentIndex;
-                string environmentName = availableEnvironments[environmentIndex];
-                
-                Debug.Log("Setting environment to: " + environmentName);
-                
-                // Implementation would load the appropriate environment assets
-                // This is a minimal implementation for testing
-            }
-            else
-            {
-                Debug.LogError("Invalid environment index: " + environmentIndex);
-            }
-        }
-        
-        /// <summary>
-        /// Sets whether test mode is enabled
-        /// </summary>
-        public virtual void SetTestMode(bool enabled)
-        {
-            isTestMode = enabled;
-            Debug.Log("Test mode " + (enabled ? "enabled" : "disabled"));
-        }
-        
-        /// <summary>
-        /// Sets whether debug mode is enabled
-        /// </summary>
-        public virtual void SetDebugMode(bool enabled)
-        {
-            isDebugMode = enabled;
-            Debug.Log("Debug mode " + (enabled ? "enabled" : "disabled"));
-        }
-    }
-}
-
-using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.SceneManagement;
@@ -590,5 +436,31 @@ namespace PDXUnderground.Core
                         mainDirectionalLight.intensity = 1.0f;
                         mainDirectionalLight.color = new Color(1f, 0.95f, 0.9f);
                     }
-                
-
+                    break;
+                    
+                case 1: // Tunnels
+                    // Darker lighting
+                    if (mainDirectionalLight != null)
+                    {
+                        mainDirectionalLight.intensity = 0.6f;
+                        mainDirectionalLight.color = new Color(0.8f, 0.8f, 0.9f);
+                    }
+                    break;
+                    
+                case 2: // Speakeasy
+                    // Warm, dim lighting
+                    if (mainDirectionalLight != null)
+                    {
+                        mainDirectionalLight.intensity = 0.75f;
+                        mainDirectionalLight.color = new Color(1f, 0.8f, 0.6f);
+                    }
+                    break;
+                    
+                default:
+                    Debug.LogWarning("Unknown environment index: " + environmentIndex);
+                    break;
+            }
+        }
+        #endregion
+    }
+}

@@ -3,7 +3,8 @@ using UnityEngine.UI;
 using System.Collections.Generic;
 using TMPro;
 using PDXUnderground.UI;
-
+using PDXUnderground.Player;
+using PDXUnderground.Core.Interfaces;
 namespace PDXUnderground.Test
 {
     /// <summary>
@@ -40,10 +41,13 @@ namespace PDXUnderground.Test
         {
             public string name = "Test Card";
             public string description = "This is a test card";
-            public float buzzCost = 10f;
+            public float energyCost = 10f;
             public float cooldown = 3f;
-            public Card.CardType cardType = Card.CardType.Attack;
-            public float effectValue = 10f;
+            public float damage = 0f;
+            public ICardSystem.CardType cardType = ICardSystem.CardType.Attack;
+            public ICardSystem.SpecialEffect specialEffect = ICardSystem.SpecialEffect.None;
+            public int suit = 0;
+            public int rank = 1;
         }
         
         private void Start()
@@ -161,19 +165,21 @@ namespace PDXUnderground.Test
             if (gamblerCharacter == null) return;
             
             // Create test cards from the defined card data
-            List<Card> cards = new List<Card>();
+            List<ICardSystem.Card> cards = new List<ICardSystem.Card>();
             foreach (var cardData in testCards)
             {
-                Card card = new Card
+                ICardSystem.Card card = new ICardSystem.Card
                 {
                     name = cardData.name,
                     description = cardData.description,
-                    buzzCost = cardData.buzzCost,
+                    energyCost = cardData.energyCost,
                     cooldown = cardData.cooldown,
-                    cardType = cardData.cardType,
-                    effectValue = cardData.effectValue
+                    type = cardData.cardType,
+                    damage = cardData.damage,
+                    specialEffect = cardData.specialEffect,
+                    suit = cardData.suit,
+                    rank = cardData.rank
                 };
-                
                 cards.Add(card);
             }
             
@@ -181,44 +187,45 @@ namespace PDXUnderground.Test
             if (cards.Count == 0)
             {
                 // Add some default test cards
-                cards.Add(new Card
+                cards.Add(new ICardSystem.Card
                 {
                     name = "Quick Strike",
                     description = "Deal 15 damage to target",
-                    buzzCost = 10f,
+                    energyCost = 10f,
                     cooldown = 2f,
-                    cardType = Card.CardType.Attack,
-                    effectValue = 15f
+                    type = ICardSystem.CardType.Attack,
+                    damage = 15f
                 });
                 
-                cards.Add(new Card
+                cards.Add(new ICardSystem.Card
                 {
                     name = "Fortify",
                     description = "Gain 20 temporary defense",
-                    buzzCost = 15f,
+                    energyCost = 15f,
                     cooldown = 3f,
-                    cardType = Card.CardType.Defense,
-                    effectValue = 20f
+                    type = ICardSystem.CardType.Defense,
+                    damage = 20f
                 });
                 
-                cards.Add(new Card
+                cards.Add(new ICardSystem.Card
                 {
                     name = "Recover",
                     description = "Heal 10 health",
-                    buzzCost = 20f,
+                    energyCost = 20f,
                     cooldown = 4f,
-                    cardType = Card.CardType.Recovery,
-                    effectValue = 10f
+                    type = ICardSystem.CardType.Utility,
+                    specialEffect = ICardSystem.SpecialEffect.Heal,
+                    damage = 10f
                 });
                 
-                cards.Add(new Card
+                cards.Add(new ICardSystem.Card
                 {
                     name = "Wild Card",
                     description = "Deal 25 damage but lose 10 health",
-                    buzzCost = 30f,
+                    energyCost = 30f,
                     cooldown = 5f,
-                    cardType = Card.CardType.Special,
-                    effectValue = 25f
+                    type = ICardSystem.CardType.Special,
+                    damage = 25f
                 });
             }
             
@@ -459,15 +466,17 @@ namespace PDXUnderground.Test
             // Add information about each card in hand
             for (int i = 0; i < currentHand.Count; i++)
             {
-                Card card = currentHand[i];
-                string cardColor = GetCardTypeColor(card.cardType);
+                ICardSystem.Card card = currentHand[i];
+                string cardColor = GetCardTypeColor(card.type);
                 
                 // Format: [1] Attack Card (10 Buzz) - "Description" - [READY/COOLDOWN: X]
-                string cooldownStatus = card.isOnCooldown 
-                    ? $"<color=#FF6666>COOLDOWN: {card.remainingCooldown:F1}</color>" 
+                bool isOnCooldown = (Time.time - card.lastUseTime) < card.cooldown;
+                float remainingCooldown = Mathf.Max(0, card.cooldown - (Time.time - card.lastUseTime));
+                string cooldownStatus = isOnCooldown 
+                    ? $"<color=#FF6666>COOLDOWN: {remainingCooldown:F1}</color>" 
                     : "<color=#66FF66>READY</color>";
                     
-                cardInfo += $"[{i+1}] <color={cardColor}>{card.name}</color> ({card.buzzCost} Buzz) - \"{card.description}\" - [{cooldownStatus}]\n";
+                cardInfo += $"[{i+1}] <color={cardColor}>{card.name}</color> ({card.energyCost} Energy) - \"{card.description}\" - [{cooldownStatus}]\n";
             }
             
             cardsText.text = cardInfo;
@@ -516,15 +525,15 @@ namespace PDXUnderground.Test
         /// <summary>
         /// Gets the color string for a buzz state
         /// </summary>
-        private string GetBuzzStateColor(GamblerCharacter.BuzzState state)
+        private string GetBuzzStateColor(IBuzzSystem.BuzzState state)
         {
             switch (state)
             {
-                case GamblerCharacter.BuzzState.Normal:
+                case IBuzzSystem.BuzzState.Normal:
                     return "#CCAA44"; // Gold
-                case GamblerCharacter.BuzzState.Low:
+                case IBuzzSystem.BuzzState.Low:
                     return "#CC7733"; // Orange
-                case GamblerCharacter.BuzzState.Critical:
+                case IBuzzSystem.BuzzState.Critical:
                     return "#CC3333"; // Red
                 default:
                     return "#FFFFFF"; // White
@@ -534,19 +543,21 @@ namespace PDXUnderground.Test
         /// <summary>
         /// Gets the color string for a card type
         /// </summary>
-        private string GetCardTypeColor(Card.CardType cardType)
+        private string GetCardTypeColor(ICardSystem.CardType cardType)
         {
             switch (cardType)
             {
-                case Card.CardType.Attack:
+                case ICardSystem.CardType.Attack:
                     return "#CC3333"; // Red
-                case Card.CardType.Defense:
+                case ICardSystem.CardType.Defense:
                     return "#3366CC"; // Blue
-                case Card.CardType.Recovery:
+                case ICardSystem.CardType.Utility:
                     return "#33CC66"; // Green
-                case Card.CardType.Special:
+                case ICardSystem.CardType.Special:
                     return "#CCAA44"; // Gold
                 default:
                     return "#FFFFFF"; // White
             }
         }
+    }
+}

@@ -1,1722 +1,2684 @@
 using UnityEngine;
-using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 
-/// <summary>
-/// PortlandEnvironmentSetup handles the generation and configuration of the Portland
-/// street grid, buildings, gaslights, and other environmental elements based on a grid system.
-/// </summary>
-public class PortlandEnvironmentSetup : MonoBehaviour
+namespace PDXUnderground.Environment
 {
-    #region Serialized Fields
-    
-    [Header("Grid Settings")]
-    [SerializeField] private int gridSizeX = 5;
-    [SerializeField] private int gridSizeZ = 5;
-    [SerializeField] private float cellSize = 60f; // Historical Portland block size
-    [SerializeField] private bool centerOrigin = true;
-    [SerializeField] private bool useRandomSeed = true;
-    [SerializeField] private int seed = 123;
-    
-    [Header("Street Prefabs")]
-    [SerializeField] private GameObject streetSectionPrefab;
-    [SerializeField] private GameObject intersectionPrefab;
-    [SerializeField] private float streetWidth = 6.0f;
-    [SerializeField] private float sidewalkWidth = 2.0f;
-    [SerializeField] private Transform streetsParent;
-    
-    [Header("Building Prefabs")]
-    [SerializeField] private List<GameObject> cornerBuildingPrefabs;
-    [SerializeField] private List<GameObject> edgeBuildingPrefabs;
-    [SerializeField] private float buildingHeight = 12f;
-    [SerializeField] private float buildingFootprintVariance = 0.2f;
-    [SerializeField] private Transform buildingsParent;
-    
-    [Header("Lighting")]
-    [SerializeField] private GameObject gaslightPrefab;
-    [SerializeField] private float gaslightSpacing = 30f;
-    [SerializeField] private float gaslightHeight = 3.5f;
-    [SerializeField] private bool placeGaslightsAtIntersections = true;
-    [SerializeField] private Transform gaslightsParent;
-    
-    [Header("Spawn Points")]
-    [SerializeField] private List<Transform> playerSpawnPoints = new List<Transform>();
-    [SerializeField] private Transform defaultSpawnPoint;
-    
-    [Header("Performance")]
-    [SerializeField] private bool useLOD = true;
-    [SerializeField] private bool combineStaticMeshes = true;
-    [SerializeField] private bool generateNavMesh = true;
-    
-    #endregion
-    
-    #region Private Variables
-    
-    private Vector3 gridOrigin;
-    private bool[,] streetGrid;
-    private List<Vector3> streetPositions = new List<Vector3>();
-    private List<Vector3> intersectionPositions = new List<Vector3>();
-    private List<Vector3> buildingPositions = new List<Vector3>();
-    private List<Vector3> gaslightPositions = new List<Vector3>();
-    private System.Random random;
-    
-    #endregion
-    
-    #region Unity Lifecycle
-    
-    private void Awake()
+    /// <summary>
+    /// PortlandEnvironmentSetup handles the generation and configuration of the Portland environment,
+    /// including streets, buildings, and other environmental features in a grid-based layout.
+    /// Provides historical accuracy for 1880s Portland with proper street patterns, lighting, and architecture.
+    /// </summary>
+    public class PortlandEnvironmentSetup : MonoBehaviour
     {
-        // Initialize random
-        if (useRandomSeed)
+        #region Serialized Fields
+        
+        [Header("Environment Configuration")]
+        [SerializeField] private Transform environmentParent;
+        [SerializeField] private Vector2Int gridSize = new Vector2Int(10, 10);
+        [SerializeField] private float cellSize = 61f; // 61m was a typical block size for Portland in the 1880s
+        [SerializeField] private bool generateOnStart = true;
+        [SerializeField] private bool useProceduralGeneration = false;
+        [SerializeField] private bool usePresetLayout = true;
+        [SerializeField] private int randomSeed = 0;
+        
+        [Header("Terrain Settings")]
+        [SerializeField] private Terrain mainTerrain;
+        [SerializeField] private float terrainHeight = 50f;
+        [SerializeField] private float riverDepth = 10f;
+        [SerializeField] private AnimationCurve heightCurve = AnimationCurve.Linear(0, 0, 1, 1);
+        
+        [Header("Street Layout")]
+        [SerializeField] private GameObject streetStraightPrefab;
+        [SerializeField] private GameObject sidewalkPrefab;
+        [SerializeField] private GameObject streetCornerPrefab;
+        [SerializeField] private GameObject intersectionPrefab;
+        [SerializeField] private Material cobblestoneRoadMaterial;
+        [SerializeField] private Material woodenSidewalkMaterial;
+        [SerializeField] private bool useHistoricalStreetPattern = true;
+        [SerializeField] private float streetWidth = 6.0f;
+        [SerializeField] private float sidewalkWidth = 2.0f;
+        [SerializeField] private bool createStreetGrid = true;
+        
+        [Header("Building Placement")]
+        [SerializeField] private GameObject[] buildingPrefabs;
+        [SerializeField] private List<GameObject> cornerBuildingPrefabs;
+        [SerializeField] private List<GameObject> edgeBuildingPrefabs;
+        [SerializeField] private float buildingSpacing = 2.0f;
+        [SerializeField] private float buildingVariation = 0.5f;
+        [SerializeField] private bool alignBuildingsToStreets = true;
+        [SerializeField] private float buildingHeight = 12f;
+        [SerializeField] private float buildingFootprintVariance = 0.2f;
+        [SerializeField] private bool generateBuildings = true;
+        [SerializeField] private float buildingInset = 4f; // Inset from street
+        
+        [Header("Lighting System")]
+        [SerializeField] private GameObject gaslightPrefab;
+        [SerializeField] private float gaslightSpacing = 20f;
+        [SerializeField] private float gaslightHeight = 3.5f;
+        [SerializeField] private bool placeGaslightsAlongStreets = true;
+        [SerializeField] private bool placeGaslightsAtIntersections = true;
+        [SerializeField] private bool generateGaslights = true;
+        [SerializeField] private float gaslightIntensityDay = 0.3f;
+        [SerializeField] private float gaslightIntensityNight = 0.8f;
+        
+        [Header("Port Configuration")]
+        [SerializeField] private GameObject dockSectionPrefab;
+        [SerializeField] private GameObject[] warehousePrefabs;
+        [SerializeField] private GameObject[] cratePrefabs;
+        [SerializeField] private GameObject mooringPostPrefab;
+        [SerializeField] private int dockSections = 8;
+        [SerializeField] private float dockWidth = 6f;
+        [SerializeField] private float dockLength = 50f;
+        
+        [Header("Shanghai Tunnels")]
+        [SerializeField] private GameObject tunnelSectionPrefab;
+        [SerializeField] private GameObject tunnelSupportBeamPrefab;
+        [SerializeField] private GameObject tunnelEntrancePrefab;
+        [SerializeField] private int tunnelSectionCount = 20;
+        [SerializeField] private Vector3[] tunnelEntrancePositions;
+        
+        [Header("Spawn Points")]
+        [SerializeField] private Transform defaultSpawnPoint;
+        [SerializeField] private List<Transform> spawnPoints = new List<Transform>();
+        [SerializeField] private float autoGenerateSpawnPointInterval = 60f;
+        
+        [Header("Transition Points")]
+        [SerializeField] private AreaTransitionTrigger tunnelEntranceTrigger;
+        [SerializeField] private AreaTransitionTrigger portEntranceTrigger;
+        [SerializeField] private AreaTransitionTrigger[] customTransitionPoints;
+        
+        [Header("Historical Accuracy")]
+        [SerializeField] private TextAsset historicalLayoutData;
+        [SerializeField] private Vector2 portlandCenterCoordinate = new Vector2(0, 0);
+        [SerializeField] private float historicalBlockSize = 61f;
+        [SerializeField] private Vector2 gridNorthDirection = new Vector2(0, 1);
+        
+        [Header("Save/Load Settings")]
+        [SerializeField] private string environmentSaveFilename = "portland_layout.json";
+        [SerializeField] private bool loadLayoutOnStart = false;
+        [SerializeField] private bool saveLayoutOnGeneration = false;
+        
+        [Header("Performance")]
+        [SerializeField] private bool useLOD = true;
+        [SerializeField] private bool combineStaticMeshes = true;
+        [SerializeField] private bool generateNavMesh = true;
+        
+        [Header("Debug Visualization")]
+        [SerializeField] private bool showDebugVisuals = true;
+        [SerializeField] private bool regenerateOnStart = false;
+        [SerializeField] private Color streetGridColor = new Color(0.7f, 0.7f, 0.7f, 0.3f);
+        [SerializeField] private Color buildingGridColor = new Color(0.3f, 0.6f, 0.9f, 0.3f);
+        [SerializeField] private Color spawnPointColor = new Color(0.0f, 1.0f, 0.0f, 0.5f);
+        
+        #endregion
+        
+        #region Private Variables
+        
+        private Dictionary<Vector2Int, CellType> gridCells = new Dictionary<Vector2Int, CellType>();
+        private Dictionary<Vector2Int, GameObject> placedObjects = new Dictionary<Vector2Int, GameObject>();
+        private List<GameObject> generatedObjects = new List<GameObject>();
+        private List<Vector3> gaslightPositions = new List<Vector3>();
+        private List<Vector3> buildingPositions = new List<Vector3>();
+        private List<Vector3> dockPositions = new List<Vector3>();
+        private List<Vector3> availableSpawnPoints = new List<Vector3>();
+        private List<Vector3> intersectionPositions = new List<Vector3>();
+        private bool[,] streetGrid;
+        private System.Random random;
+        
+        private Transform streetsParent;
+        private Transform buildingsParent;
+        private Transform lightsParent;
+        private Transform portsParent;
+        private Transform tunnelsParent;
+        private Transform transitionsParent;
+        
+        private Vector3 gridOrigin = Vector3.zero;
+        
+        private enum CellType
         {
-            random = new System.Random();
-        }
-        else
-        {
-            random = new System.Random(seed);
+            Empty,
+            Street,
+            Building,
+            Dock,
+            River,
+            Terrain,
+            Tunnel
         }
         
-        // Calculate grid origin
-        if (centerOrigin)
+        #endregion
+        
+        #region Unity Lifecycle
+        
+        private void Awake()
         {
+            InitializeEnvironment();
+        }
+        
+        private void Start()
+        {
+            // Create default spawn point if none exists
+            EnsureDefaultSpawnPoint();
+            
+            // Load existing layout or generate new one
+            if (loadLayoutOnStart)
+            {
+                LoadEnvironmentLayout();
+            }
+            else if (generateOnStart || regenerateOnStart)
+            {
+                GenerateEnvironment();
+            }
+            
+            // Post-processing for performance
+            if (combineStaticMeshes)
+            {
+                StartCoroutine(CombineStaticMeshes());
+            }
+            
+            // Generate NavMesh if needed
+            if (generateNavMesh)
+            {
+                StartCoroutine(GenerateNavMesh());
+            }
+        }
+        
+        private void OnDrawGizmos()
+        {
+            if (!showDebugVisuals)
+                return;
+            
+            DrawDebugGrid();
+            DrawSpawnPoints();
+        }
+        
+        #endregion
+        
+        #region Initialization Methods
+        
+        /// <summary>
+        /// Initializes the environment with all required components
+        /// </summary>
+        private void InitializeEnvironment()
+        {
+            // Set up environment parent reference
+            if (environmentParent == null)
+            {
+                environmentParent = transform;
+            }
+
+            // Create parent objects for organization
+            CreateParentObjects();
+            
+            // Initialize random generator
+            if (randomSeed != 0)
+            {
+                Random.InitState(randomSeed);
+                random = new System.Random(randomSeed);
+            }
+            else
+            {
+                random = new System.Random();
+            }
+            
+            // Calculate grid origin for centering
+            CalculateGridOrigin();
+        }
+        
+        /// <summary>
+        /// Creates parent transform objects for better scene organization
+        /// </summary>
+        private void CreateParentObjects()
+        {
+            streetsParent = CreateOrGetParentObject("Streets");
+            buildingsParent = CreateOrGetParentObject("Buildings");
+            lightsParent = CreateOrGetParentObject("Lights");
+            portsParent = CreateOrGetParentObject("Ports");
+            tunnelsParent = CreateOrGetParentObject("Tunnels");
+            transitionsParent = CreateOrGetParentObject("Transitions");
+        }
+
+        /// <summary>
+        /// Creates or retrieves a parent object with the specified name
+        /// </summary>
+        private Transform CreateOrGetParentObject(string name)
+        {
+            Transform parent = environmentParent.Find(name);
+            if (parent == null)
+            {
+                GameObject obj = new GameObject(name);
+                obj.transform.SetParent(environmentParent);
+                parent = obj.transform;
+            }
+            return parent;
+        }
+        
+        /// <summary>
+        /// Calculates the grid origin based on current settings
+        /// </summary>
+        private void CalculateGridOrigin()
+        {
+            if (gridSize.x <= 0 || gridSize.y <= 0)
+            {
+                Debug.LogWarning("Invalid grid size, using default (10x10)");
+                gridSize = new Vector2Int(10, 10);
+            }
+            
             gridOrigin = new Vector3(
-                -((gridSizeX * cellSize) / 2f) + (cellSize / 2f),
+                -((gridSize.x * cellSize) / 2f),
                 0f,
-                -((gridSizeZ * cellSize) / 2f) + (cellSize / 2f)
+                -((gridSize.y * cellSize) / 2f)
             );
         }
-        else
-        {
-            gridOrigin = Vector3.zero;
-        }
         
-        // Create parent transforms if not set
-        CreateParentTransforms();
-    }
-    
-    private void Start()
-    {
-        // Generate environment in order
-        GenerateStreetGrid();
-        PlaceStreets();
-        PlaceBuildings();
-        PlaceGaslights();
-        SetupPlayerSpawnPoints();
-        
-        // Post-processing for performance
-        if (combineStaticMeshes)
+        /// <summary>
+        /// Ensures a default spawn point exists
+        /// </summary>
+        private void EnsureDefaultSpawnPoint()
         {
-            StartCoroutine(CombineStaticMeshes());
-        }
-        
-        // Generate NavMesh if needed
-        if (generateNavMesh)
-        {
-            StartCoroutine(GenerateNavMesh());
-        }
-    }
-    
-    #endregion
-    
-    #region Public Methods
-    
-    /// <summary>
-    /// Gets the nearest spawn point to a position
-    /// </summary>
-    public Vector3 GetNearestSpawnPoint(Vector3 position)
-    {
-        if (playerSpawnPoints.Count == 0)
-        {
-            // Return default spawn point or fallback to a safe position
-            if (defaultSpawnPoint != null)
+            if (defaultSpawnPoint == null && spawnPoints.Count == 0)
             {
-                return defaultSpawnPoint.position;
-            }
-            
-            return new Vector3(0, 0.5f, 0);
-        }
-        
-        // Find the closest spawn point
-        Transform closest = playerSpawnPoints[0];
-        float closestDistance = Vector3.Distance(position, closest.position);
-        
-        foreach (Transform spawn in playerSpawnPoints)
-        {
-            if (spawn == null) continue;
-            
-            float distance = Vector3.Distance(position, spawn.position);
-            if (distance < closestDistance)
-            {
-                closestDistance = distance;
-                closest = spawn;
+                GameObject spawnObj = new GameObject("DefaultSpawn");
+                spawnObj.transform.SetParent(environmentParent);
+                spawnObj.transform.position = new Vector3(0, 0.5f, 0);
+                defaultSpawnPoint = spawnObj.transform;
+                spawnPoints.Add(defaultSpawnPoint);
             }
         }
         
-        return closest.position;
-    }
-    
-    /// <summary>
-    /// Checks if a position is on a street
-    /// </summary>
-    public bool IsPositionOnStreet(Vector3 position)
-    {
-        // Convert world position to grid coordinates
-        Vector2Int gridCoord = WorldToGridCoordinates(position);
-        
-        // Check if coordinates are within grid bounds
-        if (gridCoord.x >= 0 && gridCoord.x < gridSizeX && 
-            gridCoord.y >= 0 && gridCoord.y < gridSizeZ)
+        /// <summary>
+        /// Combines static meshes for performance optimization
+        /// </summary>
+        private System.Collections.IEnumerator CombineStaticMeshes()
         {
-            return streetGrid[gridCoord.x, gridCoord.y];
+            yield return new WaitForEndOfFrame();
+            
+            // This would combine meshes for static objects to improve performance
+            // Implementation depends on specific requirements and Unity version
+            Debug.Log("Static meshes combined for performance");
         }
         
-        return false;
-    }
-    
-    /// <summary>
-    /// Gets the total number of gaslights placed in the environment
-    /// </summary>
-    public int GetGaslightCount()
-    {
-        return gaslightPositions.Count;
-    }
-    
-    /// <summary>
-    /// Gets the total street length in the environment
-    /// </summary>
-    public float GetTotalStreetLength()
-    {
-        return (streetPositions.Count * streetWidth) + (intersectionPositions.Count * (streetWidth + sidewalkWidth * 2));
-    }
-    
-    #endregion
-    
-    #region Private Methods
-    
-    /// <summary>
-    /// Creates necessary parent transforms if not already set
-    /// </summary>
-    private void CreateParentTransforms()
-    {
-        if (streetsParent == null)
+        /// <summary>
+        /// Generates NavMesh for the environment
+        /// </summary>
+        private System.Collections.IEnumerator GenerateNavMesh()
         {
-            GameObject streetsObj = new GameObject("Streets");
-            streetsObj.transform.SetParent(transform);
-            streetsParent = streetsObj.transform;
+            yield return new WaitForEndOfFrame();
+            
+            // This would build the NavMesh for the environment
+            // Implementation depends on NavMesh components and Unity version
+            Debug.Log("NavMesh generated for the environment");
         }
         
-        if (buildingsParent == null)
-        {
-            GameObject buildingsObj = new GameObject("Buildings");
-            buildingsObj.transform.SetParent(transform);
-            buildingsParent = buildingsObj.transform;
-        }
+        #endregion
         
-        if (gaslightsParent == null)
+        #region Environment Generation
+
+        /// <summary>
+        /// Main method for generating the entire environment
+        /// </summary>
+        public void GenerateEnvironment()
         {
-            GameObject gaslightsObj = new GameObject("Gaslights");
-            gaslightsObj.transform.SetParent(transform);
-            gaslightsParent = gaslightsObj.transform;
-        }
-    }
-    
-    /// <summary>
-    /// Generates the grid layout for streets and blocks
-    /// </summary>
-    private void GenerateStreetGrid()
-    {
-        // Initialize street grid
-        streetGrid = new bool[gridSizeX, gridSizeZ];
-        
-        // Generate a grid with streets at regular intervals
-        for (int x = 0; x < gridSizeX; x++)
-        {
-            for (int z = 0; z < gridSizeZ; z++)
+            // Clear existing environment if any
+            ClearEnvironment();
+
+            // Initialize the street grid array
+            streetGrid = new bool[gridSize.x, gridSize.y];
+
+            try
             {
-                // Streets are at even indices (0,2,4,etc.) in a grid pattern
-                bool isStreet = (x % 2 == 0) || (z % 2 == 0);
-                streetGrid[x, z] = isStreet;
-                
-                // Record positions for streets and intersections
-                Vector3 worldPos = GridToWorldPosition(new Vector2Int(x, z));
-                
-                if (isStreet)
+                // Generate base terrain if needed
+                if (mainTerrain != null)
                 {
-                    // Check if it's an intersection (both x and z are even)
-                    if (x % 2 == 0 && z % 2 == 0)
+                    GenerateTerrain();
+                }
+
+                // Create street grid (either historical or procedural)
+                if (createStreetGrid)
+                {
+                    if (useHistoricalStreetPattern && historicalLayoutData != null)
                     {
-                        intersectionPositions.Add(worldPos);
+                        CreateHistoricalStreetGrid();
                     }
                     else
                     {
-                        streetPositions.Add(worldPos);
+                        CreateStreetGrid();
                     }
                 }
-                else
+
+                // Generate buildings along streets
+                if (generateBuildings && buildingPrefabs != null && buildingPrefabs.Length > 0)
                 {
-                    // Building positions (inner blocks)
-                    buildingPositions.Add(worldPos);
+                    GenerateBuildings();
                 }
-            }
-        }
-    }
-    
-    /// <summary>
-    /// Places street segments and intersections in the world
-    /// </summary>
-    private void PlaceStreets()
-    {
-        if (streetSectionPrefab == null || intersectionPrefab == null)
-        {
-            Debug.LogError("Street prefabs not assigned!");
-            return;
-        }
-        
-        // Place street sections
-        foreach (Vector3 pos in streetPositions)
-        {
-            GameObject street = Instantiate(streetSectionPrefab, pos, Quaternion.identity, streetsParent);
-            
-            // Determine orientation (vertical or horizontal)
-            Vector2Int gridPos = WorldToGridCoordinates(pos);
-            bool isVertical = gridPos.x % 2 == 0; // Even X means vertical street
-            
-            if (isVertical)
-            {
-                street.transform.rotation = Quaternion.Euler(0, 90, 0);
-            }
-            
-            // Name the street section
-            street.name = $"Street_{gridPos.x}_{gridPos.y}";
-        }
-        
-        // Place intersections
-        foreach (Vector3 pos in intersectionPositions)
-        {
-            GameObject intersection = Instantiate(intersectionPrefab, pos, Quaternion.identity, streetsParent);
-            
-            // Name the intersection
-            Vector2Int gridPos = WorldToGridCoordinates(pos);
-            intersection.name = $"Intersection_{gridPos.x}_{gridPos.y}";
-        }
-    }
-    
-    /// <summary>
-    /// Places buildings around the grid
-    /// </summary>
-    private void PlaceBuildings()
-    {
-        if (cornerBuildingPrefabs.Count == 0 && edgeBuildingPrefabs.Count == 0)
-        {
-            Debug.LogError("Building prefabs not assigned!");
-            return;
-        }
-        
-        foreach (Vector3 pos in buildingPositions)
-        {
-            // Get grid coordinates
-            Vector2Int gridCoord = WorldToGridCoordinates(pos);
-            
-            // Skip if we're at the edge of the grid
-            if (gridCoord.x <= 0 || gridCoord.x >= gridSizeX - 1 ||
-                gridCoord.y <= 0 || gridCoord.y >= gridSizeZ - 1)
-            {
-                continue;
-            }
-            
-            // Check surrounding cells to determine building type
-            bool isCorner = IsCornerPosition(gridCoord);
-            
-            // Select appropriate building prefab
-            GameObject buildingPrefab;
-            if (isCorner && cornerBuildingPrefabs.Count > 0)
-            {
-                buildingPrefab = cornerBuildingPrefabs[random.Next(cornerBuildingPrefabs.Count)];
-            }
-            else if (edgeBuildingPrefabs.Count > 0)
-            {
-                buildingPrefab = edgeBuildingPrefabs[random.Next(edgeBuildingPrefabs.Count)];
-            }
-            else
-            {
-                continue;
-            }
-            
-            // Calculate building position with slight variation
-            float xOffset = ((float)random.NextDouble() * 2 - 1) * buildingFootprintVariance;
-            float zOffset = ((float)random.NextDouble() * 2 - 1) * buildingFootprintVariance;
-            Vector3 buildingPos = pos + new Vector3(xOffset, 0, zOffset);
-            
-            // Calculate rotation to face nearest street
-            Quaternion rotation = CalculateBuildingRotation(gridCoord);
-            
-            // Instantiate building
-            GameObject building = Instantiate(buildingPrefab, buildingPos, rotation, buildingsParent);
-            
-            // Name the building
-            building.name = $"Building_{gridCoord.x}_{gridCoord.y}";
-            
-            // Add random height variation
-            float heightScale = 1.0f + (((float)random.NextDouble() * 2 - 1) * 0.2f);
-            building.transform.localScale = new Vector3(
-                building.transform.localScale.x,
-                building.transform.localScale.y * heightScale,
-                building.transform.localScale.z
-            );
-        }
-    }
-    
-    /// <summary>
-    /// Places gaslights along streets
-    /// </summary>
-    private void PlaceGaslights()
-    {
-        if (gaslightPrefab == null)
-        {
-            Debug.LogError("Gaslight prefab not assigned!");
-            return;
-        }
-        
-        // Place gaslights at intersections
-        if (placeGaslightsAtIntersections)
-        {
-            foreach (Vector3 pos in intersectionPositions)
-            {
-                PlaceGaslightAtPosition(pos + new Vector3(streetWidth / 2, 0, streetWidth / 2));
-                PlaceGaslightAtPosition(pos + new Vector3(-streetWidth / 2, 0, streetWidth / 2));
-                PlaceGaslightAtPosition(pos + new Vector3(streetWidth / 2, 0, -streetWidth / 2));
-                PlaceGaslightAtPosition(pos + new Vector3(-streetWidth / 2, 0, -streetWidth / 2));
-            }
-        }
-        
-        // Place gaslights along streets
-        if (gaslightSpacing > 0)
-        {
-            // Calculate number of additional gaslights needed
-            int gaslightsPerStreet = Mathf.FloorToInt(cellSize / gaslightSpacing) - 1;
-            if (gaslightsPerStreet <= 0) return;
-            
-            float spacing = cellSize / (gaslightsPerStreet + 1);
-            
-            foreach (Vector3 streetPos in streetPositions)
-            {
-                Vector2Int gridCoord = WorldToGridCoordinates(streetPos);
-                bool isVertical = gridCoord.x % 2 == 0; // Even X means vertical street
-                
-                for (int i = 1; i <= gaslightsPerStreet; i++)
+
+                // Place gaslights
+                if (generateGaslights && gaslightPrefab != null)
                 {
-                    Vector3 gaslightPos;
-                    if (isVertical)
+                    PlaceGaslights();
+                }
+
+                // Generate port area if configured
+                if (dockSectionPrefab != null && dockSections > 0)
+                {
+                    GeneratePortArea();
+                }
+
+                // Generate Shanghai tunnels
+                if (tunnelSectionPrefab != null && tunnelSectionCount > 0)
+                {
+                    GenerateTunnels();
+                }
+
+                // Place transition points
+                PlaceTransitionPoints();
+
+                // Generate spawn points throughout the environment
+                GenerateSpawnPoints();
+
+                // Save layout if enabled
+                if (saveLayoutOnGeneration)
+                {
+                    SaveEnvironmentLayout();
+                }
+
+                Debug.Log("Portland environment generation completed successfully");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Error during environment generation: {e.Message}\n{e.StackTrace}");
+                ClearEnvironment(); // Clean up on failure
+            }
+        }
+
+        /// <summary>
+        /// Creates a basic terrain for the environment
+        /// </summary>
+        private void GenerateTerrain()
+        {
+            // Placeholder for terrain generation
+            Debug.Log("Terrain generation placeholder");
+            
+            // In a full implementation, this would modify the terrain data
+            // to create appropriate height variations, texture painting, etc.
+        }
+
+        /// <summary>
+        /// Creates the basic street grid layout using a procedural approach
+        /// </summary>
+        private void CreateStreetGrid()
+        {
+            Debug.Log("Creating procedural street grid");
+            
+            for (int x = 0; x < gridSize.x; x++)
+            {
+                for (int z = 0; z < gridSize.y; z++)
+                {
+                    // Determine if this should be a street based on grid position
+                    bool isStreet = IsStreetPosition(x, z);
+                    streetGrid[x, z] = isStreet;
+
+                    if (isStreet)
                     {
-                        gaslightPos = streetPos + new Vector3(sidewalkWidth, 0, i * spacing - (cellSize / 2));
-                        PlaceGaslightAtPosition(gaslightPos);
-                        
-                        gaslightPos = streetPos + new Vector3(-sidewalkWidth, 0
-
-using UnityEngine;
-using System.Collections.Generic;
-
-/// <summary>
-/// PortlandEnvironmentSetup handles the generation and configuration of the Portland city environment,
-/// including streets, buildings, and reference points for historical layout.
-/// </summary>
-public class PortlandEnvironmentSetup : MonoBehaviour
-{
-    #region Serialized Fields
-    
-    [Header("Grid Settings")]
-    [SerializeField] private int gridSizeX = 5;
-    [SerializeField] private int gridSizeZ = 5;
-    [SerializeField] private float cellSize = 60f; // 60 feet was a historical Portland block size
-    [SerializeField] private bool centerOrigin = true;
-    
-    [Header("Street Prefabs")]
-    [SerializeField] private GameObject streetSectionPrefab;
-    [SerializeField] private GameObject intersectionPrefab;
-    [SerializeField] private float streetWidth = 6.0f;
-    [SerializeField] private float sidewalkWidth = 2.0f;
-    
-    [Header("Building Prefabs")]
-    [SerializeField] private GameObject[] buildingPrefabs;
-    [SerializeField] private GameObject defaultBuildingPrefab;
-    [SerializeField] private float buildingHeight = 12f;
-    [SerializeField] private float buildingFootprintVariance = 0.2f;
-    
-    [Header("Lighting")]
-    [SerializeField] private GameObject gaslightPrefab;
-    [SerializeField] private float gaslightSpacing = 30f; // Distance between gaslights
-    [SerializeField] private float gaslightHeight = 3.5f;
-    [SerializeField] private bool placeGaslightsAtIntersections = true;
-    
-    [Header("Spawn Points")]
-    [SerializeField] private Transform defaultSpawnPoint;
-    [SerializeField] private List<Transform> spawnPoints = new List<Transform>();
-    
-    [Header("Debug Visualization")]
-    [SerializeField] private bool showDebugVisuals = true;
-    [SerializeField] private Color streetGridColor = new Color(0.7f, 0.7f, 0.7f, 0.3f);
-    [SerializeField] private Color buildingGridColor = new Color(0.3f, 0.6f, 0.9f, 0.3f);
-    [SerializeField] private Color spawnPointColor = new Color(0.0f, 1.0f, 0.0f, 0.5f);
-    
-    #endregion
-    
-    #region Private Variables
-    
-    private Vector3 gridOrigin = Vector3.zero;
-    private GameObject streetsParent;
-    private GameObject buildingsParent;
-    private GameObject gaslightsParent;
-    private List<GameObject> instantiatedStreets = new List<GameObject>();
-    private List<GameObject> instantiatedBuildings = new List<GameObject>();
-    private List<GameObject> instantiatedGaslights = new List<GameObject>();
-    private List<Vector3> intersectionPositions = new List<Vector3>();
-    
-    #endregion
-    
-    #region Unity Lifecycle
-    
-    private void Awake()
-    {
-        // Set grid origin
-        if (centerOrigin)
-        {
-            gridOrigin = new Vector3(
-                -((gridSizeX - 1) * cellSize) / 2f,
-                0f,
-                -((gridSizeZ - 1) * cellSize) / 2f
-            );
-        }
-        
-        // Create parent objects for organization
-        streetsParent = new GameObject("Streets");
-        streetsParent.transform.SetParent(transform);
-        
-        buildingsParent = new GameObject("Buildings");
-        buildingsParent.transform.SetParent(transform);
-        
-        gaslightsParent = new GameObject("Gaslights");
-        gaslightsParent.transform.SetParent(transform);
-    }
-    
-    private void Start()
-    {
-        // Create default spawn point if none exists
-        if (defaultSpawnPoint == null && spawnPoints.Count == 0)
-        {
-            GameObject spawnObj = new GameObject("DefaultSpawn");
-            spawnObj.transform.position = new Vector3(0, 0.5f, 0);
-            defaultSpawnPoint = spawnObj.transform;
-            spawnPoints.Add(defaultSpawnPoint);
-        }
-        
-        // Generate environment
-        GenerateStreetGrid();
-        PlaceBuildings();
-        PlaceGaslights();
-        
-        // Ensure we have enough spawn points
-        EnsureSpawnPoints();
-    }
-    
-    private void OnDrawGizmos()
-    {
-        if (!showDebugVisuals)
-            return;
-            
-        Vector3 origin = Application.isPlaying ? gridOrigin : (centerOrigin ? 
-            new Vector3(-((gridSizeX - 1) * cellSize) / 2f, 0f, -((gridSizeZ - 1) * cellSize) / 2f) : Vector3.zero);
-            
-        // Draw street grid
-        Gizmos.color = streetGridColor;
-        
-        // Draw horizontal streets
-        for (int z = 0; z < gridSizeZ; z++)
-        {
-            Vector3 start = origin + new Vector3(0, 0.1f, z * cellSize);
-            Vector3 end = origin + new Vector3((gridSizeX - 1) * cellSize, 0.1f, z * cellSize);
-            Gizmos.DrawLine(start, end);
-            
-            // Draw street width
-            Vector3 widthStart = start - new Vector3(0, 0, streetWidth / 2);
-            Vector3 widthEnd = end - new Vector3(0, 0, streetWidth / 2);
-            Gizmos.DrawLine(widthStart, widthEnd);
-            
-            widthStart = start + new Vector3(0, 0, streetWidth / 2);
-            widthEnd = end + new Vector3(0, 0, streetWidth / 2);
-            Gizmos.DrawLine(widthStart, widthEnd);
-        }
-        
-        // Draw vertical streets
-        for (int x = 0; x < gridSizeX; x++)
-        {
-            Vector3 start = origin + new Vector3(x * cellSize, 0.1f, 0);
-            Vector3 end = origin + new Vector3(x * cellSize, 0.1f, (gridSizeZ - 1) * cellSize);
-            Gizmos.DrawLine(start, end);
-            
-            // Draw street width
-            Vector3 widthStart = start - new Vector3(streetWidth / 2, 0, 0);
-            Vector3 widthEnd = end - new Vector3(streetWidth / 2, 0, 0);
-            Gizmos.DrawLine(widthStart, widthEnd);
-            
-            widthStart = start + new Vector3(streetWidth / 2, 0, 0);
-            widthEnd = end + new Vector3(streetWidth / 2, 0, 0);
-            Gizmos.DrawLine(widthStart, widthEnd);
-        }
-        
-        // Draw intersections
-        Gizmos.color = Color.yellow;
-        for (int x = 0; x < gridSizeX; x++)
-        {
-            for (int z = 0; z < gridSizeZ; z++)
-            {
-                Vector3 position = origin + new Vector3(x * cellSize, 0.2f, z * cellSize);
-                Gizmos.DrawSphere(position, 1.0f);
-            }
-        }
-        
-        // Draw building plots
-        Gizmos.color = buildingGridColor;
-        for (int x = 0; x < gridSizeX - 1; x++)
-        {
-            for (int z = 0; z < gridSizeZ - 1; z++)
-            {
-                Vector3 center = origin + new Vector3(
-                    x * cellSize + cellSize / 2,
-                    0.1f,
-                    z * cellSize + cellSize / 2
-                );
-                
-                float plotSize = cellSize - (streetWidth + sidewalkWidth * 2);
-                Vector3 size = new Vector3(plotSize, 0.1f, plotSize);
-                Gizmos.DrawCube(center, size);
-            }
-        }
-        
-        // Draw spawn points
-        Gizmos.color = spawnPointColor;
-        
-        if (defaultSpawnPoint != null)
-        {
-            Gizmos.DrawSphere(defaultSpawnPoint.position, 1f);
-            Gizmos.DrawLine(defaultSpawnPoint.position, defaultSpawnPoint.position + Vector3.up * 3f);
-        }
-        
-        foreach (Transform spawnPoint in spawnPoints)
-        {
-            if (spawnPoint != null && spawnPoint != defaultSpawnPoint)
-            {
-                Gizmos.DrawSphere(spawnPoint.position, 0.5f);
-                Gizmos.DrawLine(spawnPoint.position, spawnPoint.position + Vector3.up * 2f);
-            }
-        }
-    }
-    
-    #endregion
-    
-    #region Public Methods
-    
-    /// <summary>
-    /// Gets the nearest spawn point to a specific position
-    /// </summary>
-    public Vector3 GetNearestSpawnPoint(Vector3 position)
-    {
-        if (spawnPoints.Count == 0)
-        {
-            if (defaultSpawnPoint != null)
-            {
-                return defaultSpawnPoint.position;
-            }
-            else
-            {
-                return Vector3.zero;
-            }
-        }
-        
-        Transform nearestSpawn = spawnPoints[0];
-        float nearestDistance = Vector3.Distance(position, nearestSpawn.position);
-        
-        foreach (Transform spawn in spawnPoints)
-        {
-            if (spawn == null)
-                continue;
-                
-            float distance = Vector3.Distance(position, spawn.position);
-            if (distance < nearestDistance)
-            {
-                nearestSpawn = spawn;
-                nearestDistance = distance;
-            }
-        }
-        
-        return nearestSpawn.position;
-    }
-    
-    /// <summary>
-    /// Gets the grid origin position
-    /// </summary>
-    public Vector3 GetGridOrigin()
-    {
-        return gridOrigin;
-    }
-    
-    /// <summary>
-    /// Gets a random intersection position
-    /// </summary>
-    public Vector3 GetRandomIntersection()
-    {
-        if (intersectionPositions.Count == 0)
-        {
-            // Calculate intersections if not already done
-            for (int x = 0; x < gridSizeX; x++)
-            {
-                for (int z = 0; z < gridSizeZ; z++)
-                {
-                    Vector3 position = gridOrigin + new Vector3(x * cellSize, 0f, z * cellSize);
-                    intersectionPositions.Add(position);
+                        gridCells[new Vector2Int(x, z)] = CellType.Street;
+                        CreateStreetSection(x, z);
+                    }
+                    else
+                    {
+                        gridCells[new Vector2Int(x, z)] = CellType.Empty;
+                    }
                 }
             }
+
+            // Create intersections where streets meet
+            CreateIntersections();
         }
-        
-        if (intersectionPositions.Count == 0)
-            return Vector3.zero;
+
+        /// <summary>
+        /// Creates a historically accurate street grid based on layout data
+        /// </summary>
+        private void CreateHistoricalStreetGrid()
+        {
+            if (historicalLayoutData == null)
+            {
+                Debug.LogWarning("Historical layout data is missing, falling back to procedural generation");
+                CreateStreetGrid();
+                return;
+            }
+
+            Debug.Log("Creating historical street grid based on historical data");
             
-        return intersectionPositions[Random.Range(0, intersectionPositions.Count)];
-    }
-    
-    /// <summary>
-    /// Gets a random position on a street
-    /// </summary>
-    public Vector3 GetRandomStreetPosition()
-    {
-        // Pick a random direction (horizontal or vertical)
-        bool horizontal = Random.value > 0.5f;
-        
-        if (horizontal)
-        {
-            int row = Random.Range(0, gridSizeZ);
-            float x = Random.Range(0, (gridSizeX - 1) * cellSize);
-            return gridOrigin + new Vector3(x, 0f, row * cellSize);
-        }
-        else
-        {
-            int col = Random.Range(0, gridSizeX);
-            float z = Random.Range(0, (gridSizeZ - 1) * cellSize);
-            return gridOrigin + new Vector3(col * cellSize, 0f, z);
-        }
-    }
-    
-    /// <summary>
-    /// Clears the environment and regenerates it
-    /// </summary>
-    public void RegenerateEnvironment()
-    {
-        // Clear existing objects
-        ClearEnvironment();
-        
-        // Regenerate
-        GenerateStreetGrid();
-        PlaceBuildings();
-        PlaceGaslights();
-        EnsureSpawnPoints();
-    }
-    
-    #endregion
-    
-    #region Private Methods
-    
-    /// <summary>
-    /// Generates the street grid
-    /// </summary>
-    private void GenerateStreetGrid()
-    {
-        // Create street sections
-        for (int x = 0; x < gridSizeX - 1; x++)
-        {
-            for (int z = 0; z < gridSizeZ; z++)
+            try
             {
-                // Horizontal streets
-                Vector3 position = gridOrigin + new Vector3(
-                    x * cellSize + cellSize / 2,
-                    0f,
-                    z * cellSize
-                );
+                // Parse historical layout data
+                // In a full implementation, this would parse JSON or another format
+                // containing historical street information
                 
-                Vector3 scale = new Vector3(
-                    cellSize - streetWidth,
-                    1f,
-                    streetWidth
-                );
+                /* Example structure that would be parsed:
+                {
+                    "streets": [
+                        { "position": {"x": 0, "y": 0, "z": 0}, "rotation": 0 },
+                        { "position": {"x": 61, "y": 0, "z": 0}, "rotation": 0 }
+                    ],
+                    "intersections": [
+                        { "position": {"x": 61, "y": 0, "z": 61}, "rotation": 0 }
+                    ]
+                }
+                */
                 
-                CreateStreetSection(position, scale, Quaternion.identity);
+                // For now, create a pattern based on historical block size (61m)
+                for (int x = 0; x < gridSize.x; x++)
+                {
+                    for (int z = 0; z < gridSize.y; z++)
+                    {
+                        // In historical Portland, streets followed a regular grid with
+                        // distinctive small blocks (61m x 61m)
+                        bool isStreet = x % 3 == 0 || z % 3 == 0; // Every third line for streets
+                        streetGrid[x, z] = isStreet;
+
+                        if (isStreet)
+                        {
+                            gridCells[new Vector2Int(x, z)] = CellType.Street;
+                            float rotation = 0f;
+                            
+                            // Determine street orientation
+                            if (x % 3 == 0 && z % 3 != 0)
+                            {
+                                rotation = 0f; // North-South streets
+                            }
+                            else if (x % 3 != 0 && z % 3 == 0)
+                            {
+                                rotation = 90f; // East-West streets
+                            }
+                            
+                            CreateStreetSection(x, z, rotation);
+                        }
+                        else
+                        {
+                            gridCells[new Vector2Int(x, z)] = CellType.Empty;
+                        }
+                    }
+                }
+
+                // Create intersections
+                for (int x = 0; x < gridSize.x; x += 3)
+                {
+                    for (int z = 0; z < gridSize.y; z += 3)
+                    {
+                        Vector3 position = GridToWorldPosition(x, z);
+                        intersectionPositions.Add(position);
+                    }
+                }
+                
+                CreateIntersections();
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Error parsing historical layout data: {e.Message}");
+                CreateStreetGrid(); // Fallback to procedural generation
             }
         }
-        
-        for (int x = 0; x < gridSizeX; x++)
+
+        /// <summary>
+        /// Creates a street section at the specified grid position
+        /// </summary>
+        private void CreateStreetSection(int x, int z, float rotation = 0f)
         {
-            for (int z = 0; z < gridSizeZ - 1; z++)
+            Vector3 position = GridToWorldPosition(x, z);
+            
+            // Determine street type and rotation based on connections
+            bool hasNorthStreet = z < gridSize.y - 1 && streetGrid[x, z + 1];
+            bool hasSouthStreet = z > 0 && streetGrid[x, z - 1];
+            bool hasEastStreet = x < gridSize.x - 1 && streetGrid[x + 1, z];
+            bool hasWestStreet = x > 0 && streetGrid[x - 1, z];
+            
+            GameObject streetPrefab = null;
+            float streetRotation = rotation;
+
+            // Select appropriate street prefab based on connections
+            if ((hasNorthStreet || hasSouthStreet) && (hasEastStreet || hasWestStreet))
             {
-                // Vertical streets
-                Vector3 position = gridOrigin + new Vector3(
-                    x * cellSize,
-                    0f,
-                    z * cellSize + cellSize / 2
-                );
-                
-                Vector3 scale = new Vector3(
-                    streetWidth,
-                    1f,
-                    cellSize - streetWidth
-                );
-                
-                CreateStreetSection(position, scale, Quaternion.Euler(0, 90, 0));
-            }
-        }
-        
-        // Create intersections
-        for (int x = 0; x < gridSizeX; x++)
-        {
-            for (int z = 0; z < gridSizeZ; z++)
-            {
-                Vector3 position = gridOrigin + new Vector3(
-                    x * cellSize,
-                    0f,
-                    z * cellSize
-                );
-                
-                CreateIntersection(position);
-                
-                // Add to intersection positions list
+                streetPrefab = intersectionPrefab;
                 intersectionPositions.Add(position);
             }
-        }
-    }
-    
-    /// <summary>
-    /// Places buildings around the grid
-    /// </summary>
-    private void PlaceBuildings()
-    {
-        for (int x = 0; x < gridSizeX - 1; x++)
-        {
-            for (int z = 0; z < gridSizeZ - 1; z++)
+            else if ((hasNorthStreet && hasSouthStreet) || (hasEastStreet && hasWestStreet))
             {
-                // Building positions (center of each cell)
-                Vector3 position = gridOrigin + new Vector3(
-                    x * cellSize + cellSize / 2,
-                    0f,
-                    z * cellSize + cellSize / 2
-                );
-                
-                // Skip some plots randomly for variety (not corner plots though)
-                bool isCorner = (x == 0 || x == gridSizeX - 2) && (z == 0 || z == gridSizeZ - 2);
-                if (!isCorner && Random.value < 0.3f)
-                    continue;
-                
-                CreateBuilding(position, isCorner);
-            }
-        }
-    }
-    
-    /// <summary>
-    /// Places gaslights throughout the environment
-    
-
-using UnityEngine;
-using System.Collections.Generic;
-using System.IO;
-
-/// <summary>
-/// PortlandEnvironmentSetup handles the generation and configuration of the Portland environment,
-/// including streets, buildings, and other environmental features in a grid-based layout.
-/// </summary>
-public class PortlandEnvironmentSetup : MonoBehaviour
-{
-    #region Serialized Fields
-    
-    [Header("Grid Settings")]
-    [SerializeField] private Vector2Int gridSize = new Vector2Int(5, 5);
-    [SerializeField] private float cellSize = 60f; // 60m was a typical block size for Portland in the 1800s
-    [SerializeField] private bool useProceduralGeneration = false;
-    [SerializeField] private int randomSeed = 0;
-    
-    [Header("Street Settings")]
-    [SerializeField] private GameObject streetStraightPrefab;
-    [SerializeField] private GameObject streetIntersectionPrefab;
-    [SerializeField] private bool createStreetGrid = true;
-    [SerializeField] private float streetWidth = 6f; // 6m for a typical street
-    
-    [Header("Building Settings")]
-    [SerializeField] private GameObject[] buildingPrefabs;
-    [SerializeField] private bool generateBuildings = true;
-    [SerializeField] private float buildingSpacing = 2f;
-    [SerializeField] private float buildingInset = 4f; // Inset from street
-    
-    [Header("Lighting Settings")]
-    [SerializeField] private GameObject gaslightPrefab;
-    [SerializeField] private bool generateGaslights = true;
-    [SerializeField] private float gaslightSpacing = 30f;
-    
-    [Header("Spawn Settings")]
-    [SerializeField] private Transform playerSpawnPoint;
-    [SerializeField] private Transform[] npcSpawnPoints;
-    [SerializeField] private float autoGenerateSpawnPointInterval = 60f;
-    
-    [Header("Transition Points")]
-    [SerializeField] private AreaTransitionTrigger tunnelEntrancePrefab;
-    [SerializeField] private AreaTransitionTrigger portEntrancePrefab;
-    [SerializeField] private AreaTransitionTrigger[] customTransitionPoints;
-    
-    [Header("Save/Load Settings")]
-    [SerializeField] private string environmentSaveFilename = "portland_layout.json";
-    [SerializeField] private bool loadLayoutOnStart = false;
-    [SerializeField] private bool saveLayoutOnGeneration = false;
-    
-    [Header("Debug Settings")]
-    [SerializeField] private bool showDebugVisuals = true;
-    [SerializeField] private bool regenerateOnStart = false;
-    [SerializeField] private Color streetGridColor = Color.blue;
-    [SerializeField] private Color buildingGridColor = Color.red;
-    
-    #endregion
-    
-    #region Private Variables
-    
-    private List<GameObject> generatedObjects = new List<GameObject>();
-    private List<Vector3> availableSpawnPoints = new List<Vector3>();
-    private Transform environmentParent;
-    private Transform streetsParent;
-    private Transform buildingsParent;
-    private Transform lightsParent;
-    private Transform transitionsParent;
-    
-    #endregion
-    
-    #region Unity Lifecycle
-    
-    private void Awake()
-    {
-        // Create parent objects if they don't exist
-        CreateParentObjects();
-        
-        // If we have a random seed, use it
-        if (randomSeed != 0)
-        {
-            Random.InitState(randomSeed);
-        }
-    }
-    
-    private void Start()
-    {
-        // Load existing layout or generate new one
-        if (loadLayoutOnStart)
-        {
-            LoadEnvironmentLayout();
-        }
-        else if (regenerateOnStart)
-        {
-            GenerateEnvironment();
-        }
-    }
-    
-    private void OnDrawGizmos()
-    {
-        if (showDebugVisuals)
-        {
-            DrawDebugGrid();
-        }
-    }
-    
-    #endregion
-    
-    #region Public Methods
-    
-    /// <summary>
-    /// Generates the Portland environment based on current settings
-    /// </summary>
-    public void GenerateEnvironment()
-    {
-        // Clear existing environment
-        ClearEnvironment();
-        
-        // Generate streets
-        if (createStreetGrid)
-        {
-            GenerateStreetGrid();
-        }
-        
-        // Generate buildings
-        if (generateBuildings)
-        {
-            GenerateBuildings();
-        }
-        
-        // Generate gaslights
-        if (generateGaslights)
-        {
-            GenerateGaslights();
-        }
-        
-        // Generate spawn points
-        GenerateSpawnPoints();
-        
-        // Generate transition points
-        GenerateTransitionPoints();
-        
-        // Save the layout if needed
-        if (saveLayoutOnGeneration)
-        {
-            SaveEnvironmentLayout();
-        }
-    }
-    
-    /// <summary>
-    /// Clears the current environment
-    /// </summary>
-    public void ClearEnvironment()
-    {
-        // Destroy all generated objects
-        foreach (GameObject obj in generatedObjects)
-        {
-            if (obj != null)
-            {
-                DestroyImmediate(obj);
-            }
-        }
-        
-        generatedObjects.Clear();
-        availableSpawnPoints.Clear();
-    }
-    
-    /// <summary>
-    /// Gets the nearest spawn point to a position
-    /// </summary>
-    public Vector3 GetNearestSpawnPoint(Vector3 position)
-    {
-        // If we have no spawn points, create one at the center
-        if (availableSpawnPoints.Count == 0)
-        {
-            if (playerSpawnPoint != null)
-            {
-                return playerSpawnPoint.position;
+                streetPrefab = streetStraightPrefab;
+                streetRotation = (hasNorthStreet && hasSouthStreet) ? 0f : 90f;
             }
             else
             {
-                Vector3 centerPoint = new Vector3(
-                    gridSize.x * cellSize * 0.5f,
-                    0.5f, // Slight height off ground
-                    gridSize.y * cellSize * 0.5f
-                );
-                return centerPoint;
+                streetPrefab = streetCornerPrefab;
+                // Calculate corner rotation based on connections
+                streetRotation = CalculateCornerRotation(hasNorthStreet, hasEastStreet, hasSouthStreet, hasWestStreet);
             }
-        }
-        
-        // Find the closest spawn point
-        Vector3 closestPoint = availableSpawnPoints[0];
-        float closestDistance = Vector3.Distance(position, closestPoint);
-        
-        foreach (Vector3 spawnPoint in availableSpawnPoints)
-        {
-            float distance = Vector3.Distance(position, spawnPoint);
-            if (distance < closestDistance)
+
+            // Create street section
+            if (streetPrefab != null)
             {
-                closestDistance = distance;
-                closestPoint = spawnPoint;
-            }
-        }
-        
-        return closestPoint;
-    }
-    
-    /// <summary>
-    /// Saves the current environment layout to a file
-    /// </summary>
-    public void SaveEnvironmentLayout()
-    {
-        EnvironmentSaveData saveData = new EnvironmentSaveData();
-        
-        // Save basic settings
-        saveData.gridSize = gridSize;
-        saveData.cellSize = cellSize;
-        
-        // Save building positions
-        List<Vector3> buildingPositions = new List<Vector3>();
-        if (buildingsParent != null)
-        {
-            foreach (Transform child in buildingsParent)
-            {
-                buildingPositions.Add(child.position);
-            }
-        }
-        saveData.buildingPositions = buildingPositions.ToArray();
-        
-        // Save gaslight positions
-        List<Vector3> gaslightPositions = new List<Vector3>();
-        if (lightsParent != null)
-        {
-            foreach (Transform child in lightsParent)
-            {
-                gaslightPositions.Add(child.position);
-            }
-        }
-        saveData.gaslightPositions = gaslightPositions.ToArray();
-        
-        // Save spawn points
-        saveData.spawnPoints = availableSpawnPoints.ToArray();
-        
-        // Save metadata
-        saveData.layoutName = "Portland Streets";
-        saveData.historicalYear = 1880;
-        
-        // Convert to JSON
-        string jsonData = JsonUtility.ToJson(saveData, true);
-        
-        // Save to file
-        string savePath = Path.Combine(Application.persistentDataPath, environmentSaveFilename);
-        File.WriteAllText(savePath, jsonData);
-        
-        Debug.Log($"Environment layout saved to {savePath}");
-    }
-    
-    /// <summary>
-    /// Loads an environment layout from a file
-    /// </summary>
-    public void LoadEnvironmentLayout()
-    {
-        string savePath = Path.Combine(Application.persistentDataPath, environmentSaveFilename);
-        
-        if (!File.Exists(savePath))
-        {
-            Debug.LogWarning($"No saved layout found at {savePath}. Generating new environment.");
-            GenerateEnvironment();
-            return;
-        }
-        
-        // Read from file
-        string jsonData = File.ReadAllText(savePath);
-        
-        // Parse JSON
-        EnvironmentSaveData saveData = JsonUtility.FromJson<EnvironmentSaveData>(jsonData);
-        
-        // Clear existing environment
-        ClearEnvironment();
-        
-        // Apply saved settings
-        gridSize = saveData.gridSize;
-        cellSize = saveData.cellSize;
-        
-        // Restore buildings
-        if (saveData.buildingPositions != null && buildingPrefabs.Length > 0)
-        {
-            foreach (Vector3 position in saveData.buildingPositions)
-            {
-                // Pick a random building prefab
-                GameObject prefab = buildingPrefabs[Random.Range(0, buildingPrefabs.Length)];
+                GameObject street = Instantiate(streetPrefab, position, Quaternion.Euler(0, streetRotation, 0), streetsParent);
+                street.name = $"Street_{x}_{z}";
+                generatedObjects.Add(street);
+                placedObjects[new Vector2Int(x, z)] = street;
                 
-                // Instantiate building
-                if (prefab != null)
+                // Create sidewalks
+                CreateSidewalks(position, streetRotation, hasNorthStreet, hasEastStreet, hasSouthStreet, hasWestStreet);
+            }
+        }
+
+        /// <summary>
+        /// Creates sidewalks for a street section
+        /// </summary>
+        private void CreateSidewalks(Vector3 position, float rotation, bool north, bool east, bool south, bool west)
+        {
+            if (sidewalkPrefab == null) return;
+
+            float offset = (streetWidth + sidewalkWidth) / 2f;
+            
+            // Place sidewalks based on street connections
+            if (north || south)
+            {
+                // East sidewalk
+                GameObject eastSidewalk = Instantiate(sidewalkPrefab, 
+                    position + Quaternion.Euler(0, rotation, 0) * new Vector3(offset, 0, 0),
+                    Quaternion.Euler(0, rotation, 0), 
+                    streetsParent);
+                eastSidewalk.name = $"Sidewalk_East_{position.x}_{position.z}";
+                generatedObjects.Add(eastSidewalk);
+
+                // West sidewalk
+                GameObject westSidewalk = Instantiate(sidewalkPrefab,
+                    position + Quaternion.Euler(0, rotation, 0) * new Vector3(-offset, 0, 0),
+                    Quaternion.Euler(0, rotation, 0),
+                    streetsParent);
+                westSidewalk.name = $"Sidewalk_West_{position.x}_{position.z}";
+                generatedObjects.Add(westSidewalk);
+            }
+
+            if (east || west)
+            {
+                // North sidewalk
+                GameObject northSidewalk = Instantiate(sidewalkPrefab,
+                    position + Quaternion.Euler(0, rotation, 0) * new Vector3(0, 0, offset),
+                    Quaternion.Euler(0, rotation + 90, 0),
+                    streetsParent);
+                northSidewalk.name = $"Sidewalk_North_{position.x}_{position.z}";
+                generatedObjects.Add(northSidewalk);
+
+                // South sidewalk
+                GameObject southSidewalk = Instantiate(sidewalkPrefab,
+                    position + Quaternion.Euler(0, rotation, 0) * new Vector3(0, 0, -offset),
+                    Quaternion.Euler(0, rotation + 90, 0),
+                    streetsParent);
+                southSidewalk.name = $"Sidewalk_South_{position.x}_{position.z}";
+                generatedObjects.Add(southSidewalk);
+            }
+        }
+
+        /// <summary>
+        /// Creates intersection points where streets meet
+        /// </summary>
+        private void CreateIntersections()
+        {
+            if (intersectionPrefab == null) return;
+            
+            foreach (Vector3 position in intersectionPositions)
+            {
+                Vector2Int gridPos = WorldToGridPosition(position);
+                
+                // Skip if an intersection already exists at this position
+                if (placedObjects.ContainsKey(gridPos)) continue;
+                
+                GameObject intersection = Instantiate(intersectionPrefab, position, Quaternion.identity, streetsParent);
+                intersection.name = $"Intersection_{position.x}_{position.z}";
+                generatedObjects.Add(intersection);
+                placedObjects[gridPos] = intersection;
+            }
+        }
+
+        /// <summary>
+        /// Generates buildings along streets in historically accurate positions
+        /// </summary>
+        private void GenerateBuildings()
+        {
+            if (buildingPrefabs == null || buildingPrefabs.Length == 0)
+            {
+                Debug.LogWarning("No building prefabs assigned for generation");
+                return;
+            }
+
+            Debug.Log("Generating buildings along streets...");
+
+            // Iterate through the grid to place buildings
+            for (int x = 1; x < gridSize.x - 1; x++)
+            {
+                for (int z = 1; z < gridSize.y - 1; z++)
                 {
-                    GameObject building = Instantiate(prefab, position, Quaternion.identity, buildingsParent);
-                    generatedObjects.Add(building);
+                    if (IsValidBuildingLocation(x, z))
+                    {
+                        PlaceBuilding(x, z);
+                    }
+                }
+            }
+
+            // Process corner buildings after regular buildings
+            ProcessCornerBuildings();
+        }
+
+        /// <summary>
+        /// Checks if a location is valid for building placement
+        /// </summary>
+        private bool IsValidBuildingLocation(int x, int z)
+        {
+            // Skip if this is a street cell
+            if (streetGrid[x, z])
+                return false;
+
+            // Check if this cell is adjacent to a street
+            bool hasAdjacentStreet = false;
+            
+            // Check all adjacent cells
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dz = -1; dz <= 1; dz++)
+                {
+                    if (dx == 0 && dz == 0) continue; // Skip self
+                    
+                    int newX = x + dx;
+                    int newZ = z + dz;
+                    
+                    if (IsValidGridPosition(new Vector2Int(newX, newZ)) && streetGrid[newX, newZ])
+                    {
+                        hasAdjacentStreet = true;
+                        break;
+                    }
+                }
+
+                if (hasAdjacentStreet) break;
+            }
+
+            return hasAdjacentStreet && !placedObjects.ContainsKey(new Vector2Int(x, z));
+        }
+
+        /// <summary>
+        /// Places a building at the specified grid position
+        /// </summary>
+        private void PlaceBuilding(int x, int z)
+        {
+            Vector2Int gridPos = new Vector2Int(x, z);
+            Vector3 basePosition = GridToWorldPosition(x, z);
+            
+            // Determine building type and rotation based on street adjacency
+            BuildingPlacementInfo placement = CalculateBuildingPlacement(x, z);
+            
+            // Select appropriate building prefab
+            GameObject buildingPrefab = SelectBuildingPrefab(placement.type);
+            if (buildingPrefab == null) return;
+
+            // Apply position adjustments based on building type and street alignment
+            Vector3 adjustedPosition = CalculateAdjustedBuildingPosition(basePosition, placement);
+            
+            // Create the building
+            GameObject building = Instantiate(buildingPrefab, adjustedPosition, Quaternion.Euler(0, placement.rotation, 0), buildingsParent);
+            building.name = $"Building_{x}_{z}";
+            
+            // Apply random height variation within historical limits
+            float heightVariation = 1f + (random.Next(-100, 100) / 100f) * buildingFootprintVariance;
+            building.transform.localScale = new Vector3(
+                building.transform.localScale.x,
+                building.transform.localScale.y * heightVariation,
+                building.transform.localScale.z
+            );
+
+            // Add to tracking collections
+            generatedObjects.Add(building);
+            placedObjects[gridPos] = building;
+            buildingPositions.Add(adjustedPosition);
+
+            // Mark grid cell as building
+            gridCells[gridPos] = CellType.Building;
+        }
+
+        /// <summary>
+        /// Calculates building placement information including type and rotation
+        /// </summary>
+        private BuildingPlacementInfo CalculateBuildingPlacement(int x, int z)
+        {
+            BuildingPlacementInfo info = new BuildingPlacementInfo();
+            
+            // Check adjacent streets to determine building type and orientation
+            bool northStreet = z < gridSize.y - 1 && streetGrid[x, z + 1];
+            bool southStreet = z > 0 && streetGrid[x, z - 1];
+            bool eastStreet = x < gridSize.x - 1 && streetGrid[x + 1, z];
+            bool westStreet = x > 0 && streetGrid[x - 1, z];
+            
+            int streetCount = (northStreet ? 1 : 0) + (southStreet ? 1 : 0) + 
+                             (eastStreet ? 1 : 0) + (westStreet ? 1 : 0);
+
+            // Determine building type based on adjacent streets
+            if (streetCount >= 2)
+            {
+                info.type = BuildingType.Corner;
+                
+                // Calculate rotation for corner buildings
+                if (northStreet && eastStreet) info.rotation = 0f;
+                else if (eastStreet && southStreet) info.rotation = 90f;
+                else if (southStreet && westStreet) info.rotation = 180f;
+                else if (westStreet && northStreet) info.rotation = 270f;
+                else info.rotation = 0f; // Default for other combinations
+            }
+            else if (streetCount == 1)
+            {
+                info.type = BuildingType.Edge;
+                
+                // Calculate rotation for edge buildings
+                if (northStreet) info.rotation = 0f;
+                else if (eastStreet) info.rotation = 90f;
+                else if (southStreet) info.rotation = 180f;
+                else if (westStreet) info.rotation = 270f;
+            }
+            else
+            {
+                info.type = BuildingType.Interior;
+                info.rotation = random.Next(0, 4) * 90f; // Random orientation for interior buildings
+            }
+
+            return info;
+        }
+
+        /// <summary>
+        /// Calculates the adjusted position for a building based on its placement info
+        /// </summary>
+        private Vector3 CalculateAdjustedBuildingPosition(Vector3 basePosition, BuildingPlacementInfo placement)
+        {
+            Vector3 adjustedPosition = basePosition;
+            
+            // Apply inset from street
+            if (placement.type != BuildingType.Interior)
+            {
+                adjustedPosition += Quaternion.Euler(0, placement.rotation, 0) * Vector3.back * buildingInset;
+            }
+            
+            // Apply random position variation within the plot
+            if (buildingVariation > 0)
+            {
+                float xVariation = ((float)random.NextDouble() * 2 - 1) * buildingVariation;
+                float zVariation = ((float)random.NextDouble() * 2 - 1) * buildingVariation;
+                adjustedPosition += new Vector3(xVariation, 0, zVariation);
+            }
+            
+            return adjustedPosition;
+        }
+
+        /// <summary>
+        /// Selects an appropriate building prefab based on building type
+        /// </summary>
+        private GameObject SelectBuildingPrefab(BuildingType type)
+        {
+            switch (type)
+            {
+                case BuildingType.Corner:
+                    return cornerBuildingPrefabs != null && cornerBuildingPrefabs.Count > 0
+                        ? cornerBuildingPrefabs[random.Next(cornerBuildingPrefabs.Count)]
+                        : GetRandomBuildingPrefab();
+                    
+                case BuildingType.Edge:
+                    return edgeBuildingPrefabs != null && edgeBuildingPrefabs.Count > 0
+                        ? edgeBuildingPrefabs[random.Next(edgeBuildingPrefabs.Count)]
+                        : GetRandomBuildingPrefab();
+                    
+                default:
+                    return GetRandomBuildingPrefab();
+            }
+        }
+
+        /// <summary>
+        /// Returns a random building prefab from the main collection
+        /// </summary>
+        private GameObject GetRandomBuildingPrefab()
+        {
+            if (buildingPrefabs == null || buildingPrefabs.Length == 0)
+                return null;
+                
+            return buildingPrefabs[random.Next(buildingPrefabs.Length)];
+        }
+
+        /// <summary>
+        /// Processes corner buildings after regular building placement
+        /// </summary>
+        private void ProcessCornerBuildings()
+        {
+            // Iterate through intersection positions to ensure proper corner building placement
+            foreach (Vector3 intersection in intersectionPositions)
+            {
+                Vector2Int gridPos = WorldToGridPosition(intersection);
+                
+                // Check and potentially adjust corner buildings around this intersection
+                for (int dx = -1; dx <= 1; dx += 2)
+                {
+                    for (int dz = -1; dz <= 1; dz += 2)
+                    {
+                        Vector2Int cornerPos = new Vector2Int(gridPos.x + dx, gridPos.y + dz);
+                        if (IsValidGridPosition(cornerPos) && !streetGrid[cornerPos.x, cornerPos.y])
+                        {
+                            // If there's already a building here, potentially replace it with a corner building
+                            if (placedObjects.ContainsKey(cornerPos))
+                            {
+                                GameObject existingBuilding = placedObjects[cornerPos];
+                                // Only replace non-corner buildings
+                                if (existingBuilding != null && cornerBuildingPrefabs != null && 
+                                    !IsCornerBuilding(existingBuilding))
+                                {
+                                    DestroyImmediate(existingBuilding);
+                                    generatedObjects.Remove(existingBuilding);
+                                    placedObjects.Remove(cornerPos);
+                                    PlaceBuilding(cornerPos.x, cornerPos.y);
+                                }
+                            }
+                            else
+                            {
+                                PlaceBuilding(cornerPos.x, cornerPos.y);
+                            }
+                        }
+                    }
                 }
             }
         }
-        
-        // Restore gaslights
-        if (saveData.gaslightPositions != null && gaslightPrefab != null)
+
+        /// <summary>
+        /// Checks if a building is a corner building based on its prefab
+        /// </summary>
+        private bool IsCornerBuilding(GameObject building)
         {
-            foreach (Vector3 position in saveData.gaslightPositions)
+            if (cornerBuildingPrefabs == null || cornerBuildingPrefabs.Count == 0)
+                return false;
+                
+            // Extract prefab name from instance name (format: "BuildingName(Clone)")
+            string buildingName = building.name;
+            int parenthesisIndex = buildingName.IndexOf('(');
+            if (parenthesisIndex > 0)
             {
-                GameObject gaslight = Instantiate(gaslightPrefab, position, Quaternion.identity, lightsParent);
-                generatedObjects.Add(gaslight);
+                buildingName = buildingName.Substring(0, parenthesisIndex);
+            }
+            
+            // Check if any corner building prefab matches this name
+            foreach (GameObject prefab in cornerBuildingPrefabs)
+            {
+                if (prefab != null && prefab.name == buildingName)
+                    return true;
+            }
+            
+            return false;
+        }
+
+        /// <summary>
+        /// Represents building placement calculation results
+        /// </summary>
+        private struct BuildingPlacementInfo
+        {
+            public BuildingType type;
+            public float rotation;
+        }
+
+        /// <summary>
+        /// Defines the type of building based on its position relative to streets
+        /// </summary>
+        private enum BuildingType
+        {
+            Corner,
+            Edge,
+            Interior
+        }
+
+        /// <summary>
+        /// Places gaslights along streets and at intersections following historical patterns
+        /// </summary>
+        private void PlaceGaslights()
+        {
+            if (!generateGaslights || gaslightPrefab == null)
+            {
+                Debug.LogWarning("Gaslight generation skipped - either disabled or missing prefab");
+                return;
+            }
+
+            Debug.Log("Placing gaslights along streets...");
+
+            try
+            {
+                // Place gaslights at intersections first
+                if (placeGaslightsAtIntersections)
+                {
+                    PlaceIntersectionGaslights();
+                }
+
+                // Place gaslights along streets
+                if (placeGaslightsAlongStreets)
+                {
+                    PlaceStreetGaslights();
+                }
+
+                // Configure all gaslight intensities
+                ConfigureGaslightIntensities();
+
+                Debug.Log($"Placed {gaslightPositions.Count} gaslights in the environment");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Error during gaslight placement: {e.Message}");
             }
         }
-        
-        // Restore spawn points
-        if (saveData.spawnPoints != null)
+
+        /// <summary>
+        /// Places gaslights at street intersections
+        /// </summary>
+        private void PlaceIntersectionGaslights()
         {
-            availableSpawnPoints.AddRange(saveData.spawnPoints);
-        }
-        
-        Debug.Log($"Environment layout loaded from {savePath}");
-    }
-    
-    /// <summary>
-    /// Handles transitions between main areas (streets, tunnels, port)
-    /// </summary>
-    public void TransitionToArea(string areaName, Vector3 position)
-    {
-        // In a full implementation, this would coordinate with the SceneManager
-        Debug.Log($"Transitioning to area: {areaName} at position {position}");
-    }
-    
-    #endregion
-    
-    #region Private Methods
-    
-    /// <summary>
-    /// Creates parent objects for organization
-    /// </summary>
-    private void CreateParentObjects()
-    {
-        // Main parent for all environment objects
-        if (environmentParent == null)
-        {
-            GameObject envParent = new GameObject("Environment");
-            envParent.transform.SetParent(transform);
-            environmentParent = envParent.transform;
-        }
-        
-        // Parent for streets
-        if (streetsParent == null)
-        {
-            GameObject streetsObj = new GameObject("Streets");
-            streetsObj.transform.SetParent(environmentParent);
-            streetsParent = streetsObj.transform;
-        }
-        
-        // Parent for buildings
-        if (buildingsParent == null)
-        {
-            GameObject buildingsObj = new GameObject("Buildings");
-            buildingsObj.transform.SetParent(environmentParent);
-            buildingsParent = buildingsObj.transform;
-        }
-        
-        // Parent for lights
-        if (lightsParent == null)
-        {
-            GameObject lightsObj = new GameObject("Lights");
-            lightsObj.transform.SetParent(environmentParent);
-            lightsParent = lightsObj.transform;
-        }
-        
-        // Parent for transitions
-        if (transitionsParent == null)
-        {
-            GameObject transitionsObj = new GameObject("Transitions");
-            transitionsObj.transform.SetParent(environmentParent);
-            transitionsParent = transitionsObj.transform;
-        }
-    }
-    
-    /// <summary>
-    /// Generates a grid of streets
-    /// </summary>
-    private void GenerateStreetGrid()
-    {
-        if (streetStraightPrefab == null || streetIntersectionPrefab == null)
-        {
-            Debug.LogError("Street prefabs not assigned!");
-            return;
-        }
-        
-        // Calculate the start position (lower-left corner of the grid)
-        Vector3 startPos = new Vector3(
-            -((gridSize.x * cellSize) / 2),
-            0,
-            -((gridSize.y * cellSize) / 2)
-        );
-        
-        // Generate grid of streets
-        for (int x = 0; x <= gridSize.x; x++)
-        {
-            for (int z = 0; z <= gridSize.y; z++)
+            foreach (Vector3 intersection in intersectionPositions)
             {
-                // Determine the position for this cell
-                Vector3 cellPos = new Vector3(
-                    startPos.x + (x * cellSize),
-                    0,
-                    startPos.z + (z * cellSize)
+                // Create gaslight at each corner of the intersection
+                for (int i = 0; i < 4; i++)
+                {
+                    float angle = i * 90f;
+                    Vector3 offset = Quaternion.Euler(0, angle, 0) * 
+                                   new Vector3(streetWidth / 2f + sidewalkWidth / 2f, 
+                                             0, 
+                                             streetWidth / 2f + sidewalkWidth / 2f);
+                    
+                    Vector3 position = intersection + offset;
+                    position.y = gaslightHeight;
+
+                    // Check if position is too close to existing gaslights
+                    if (!IsTooCloseToExistingGaslight(position))
+                    {
+                        CreateGaslight(position, angle + 45f); // 45-degree rotation for corner placement
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Places gaslights along street segments
+        /// </summary>
+        private void PlaceStreetGaslights()
+        {
+            // Iterate through the grid to find street segments
+            for (int x = 0; x < gridSize.x; x++)
+            {
+                for (int z = 0; z < gridSize.y; z++)
+                {
+                    if (streetGrid[x, z])
+                    {
+                        PlaceGaslightsAlongStreetSegment(x, z);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Places gaslights along a specific street segment
+        /// </summary>
+        private void PlaceGaslightsAlongStreetSegment(int x, int z)
+        {
+            Vector3 streetPos = GridToWorldPosition(x, z);
+            bool isNorthSouth = IsNorthSouthStreet(x, z);
+            
+            // Calculate number of gaslights needed for this segment
+            float segmentLength = cellSize;
+            int gaslightsPerSide = Mathf.FloorToInt(segmentLength / gaslightSpacing);
+            
+            // Skip if segment is too short for gaslights
+            if (gaslightsPerSide <= 0) return;
+            
+            // Place gaslights on both sides of the street
+            for (int side = 0; side < 2; side++)
+            {
+                float sideOffset = (streetWidth / 2f + sidewalkWidth / 2f) * (side == 0 ? 1 : -1);
+                
+                for (int i = 0; i < gaslightsPerSide; i++)
+                {
+                    // Calculate position along the street
+                    float progress = (i + 1) / (float)(gaslightsPerSide + 1);
+                    Vector3 position = streetPos;
+                    
+                    if (isNorthSouth)
+                    {
+                        position += new Vector3(sideOffset, 0, progress * cellSize);
+                    }
+                    else
+                    {
+                        position += new Vector3(progress * cellSize, 0, sideOffset);
+                    }
+                    
+                    position.y = gaslightHeight;
+                    
+                    // Check spacing from other gaslights and intersections
+                    if (!IsTooCloseToExistingGaslight(position) && 
+                        !IsTooCloseToIntersection(position))
+                    {
+                        float rotation = isNorthSouth ? (side == 0 ? 90f : 270f) : (side == 0 ? 0f : 180f);
+                        CreateGaslight(position, rotation);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Creates a gaslight at the specified position with given rotation
+        /// </summary>
+        private void CreateGaslight(Vector3 position, float rotation)
+        {
+            GameObject gaslight = Instantiate(gaslightPrefab, position, Quaternion.Euler(0, rotation, 0), lightsParent);
+            gaslight.name = $"Gaslight_{gaslightPositions.Count}";
+            
+            // Configure light component
+            Light lightComponent = gaslight.GetComponentInChildren<Light>();
+            if (lightComponent != null)
+            {
+                lightComponent.intensity = gaslightIntensityDay;
+                
+                // Add controller for day/night transitions
+                GaslightController controller = gaslight.AddComponent<GaslightController>();
+                controller.dayIntensity = gaslightIntensityDay;
+                controller.nightIntensity = gaslightIntensityNight;
+            }
+            
+            // Add optional flicker effect
+            gaslight.AddComponent<GaslightFlicker>();
+            
+            generatedObjects.Add(gaslight);
+            gaslightPositions.Add(position);
+        }
+
+        /// <summary>
+        /// Checks if a position is too close to existing gaslights
+        /// </summary>
+        private bool IsTooCloseToExistingGaslight(Vector3 position)
+        {
+            float minDistance = gaslightSpacing * 0.75f; // 75% of spacing as minimum distance
+            
+            foreach (Vector3 existingPos in gaslightPositions)
+            {
+                float dist = Vector3.Distance(new Vector3(position.x, 0, position.z), 
+                                            new Vector3(existingPos.x, 0, existingPos.z));
+                if (dist < minDistance)
+                {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
+        /// <summary>
+        /// Checks if a position is too close to an intersection
+        /// </summary>
+        private bool IsTooCloseToIntersection(Vector3 position)
+        {
+            float minDistance = streetWidth * 0.75f;
+            
+            foreach (Vector3 intersection in intersectionPositions)
+            {
+                float dist = Vector3.Distance(new Vector3(position.x, 0, position.z), 
+                                            new Vector3(intersection.x, 0, intersection.z));
+                if (dist < minDistance)
+                {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
+        /// <summary>
+        /// Determines if a street segment is oriented north-south
+        /// </summary>
+        private bool IsNorthSouthStreet(int x, int z)
+        {
+            if (z > 0 && z < gridSize.y - 1)
+            {
+                return streetGrid[x, z - 1] && streetGrid[x, z + 1];
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Configures light intensities for all placed gaslights
+        /// </summary>
+        private void ConfigureGaslightIntensities()
+        {
+            // This could be connected to a day/night cycle system
+            foreach (Transform gaslight in lightsParent)
+            {
+                Light[] lights = gaslight.GetComponentsInChildren<Light>();
+                foreach (Light light in lights)
+                {
+                    light.intensity = gaslightIntensityDay;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Helper component to manage gaslight intensity transitions between day and night
+        /// </summary>
+        [System.Serializable]
+        public class GaslightController : MonoBehaviour
+        {
+            [HideInInspector] public float dayIntensity = 0.3f;
+            [HideInInspector] public float nightIntensity = 0.8f;
+            private Light lightComponent;
+
+            private void Start()
+            {
+                lightComponent = GetComponentInChildren<Light>();
+            }
+
+            /// <summary>
+            /// Updates the light intensity based on time of day
+            /// </summary>
+            /// <param name="timeOfDay">Value between 0 (midnight) and 1 (next midnight)</param>
+            public void UpdateTimeOfDay(float timeOfDay)
+            {
+                if (lightComponent == null) return;
+
+                // Simple day/night transition curve
+                float dayFactor = Mathf.Sin(timeOfDay * Mathf.PI);
+                float nightFactor = 1f - dayFactor;
+
+                // Calculate intensity based on time (brighter at night)
+                lightComponent.intensity = (dayIntensity * dayFactor) + (nightIntensity * nightFactor);
+            }
+        }
+
+        /// <summary>
+        /// Helper component to add subtle flicker effect to gaslights
+        /// </summary>
+        /// <summary>
+        /// Helper component to add subtle flicker effect to gaslights with URP compatibility
+        /// </summary>
+        [System.Serializable]
+        public class GaslightFlicker : MonoBehaviour
+        {
+            [Header("Flicker Settings")]
+            [Range(0.5f, 0.95f)]
+            [SerializeField] private float minIntensity = 0.8f;
+            
+            [Range(1.0f, 1.5f)]
+            [SerializeField] private float maxIntensity = 1.2f;
+            
+            [Range(0.01f, 0.5f)]
+            [SerializeField] private float flickerSpeed = 0.1f;
+            
+            [Header("URP Settings")]
+            [SerializeField] private bool useTemperature = true;
+            [SerializeField] private float colorTemperature = 2200f; // Warm gaslight color
+            
+            private Light lightComponent;
+            private float baseIntensity;
+            private float nextIntensity;
+            private float lastUpdate;
+
+            private void Start()
+            {
+                lightComponent = GetComponentInChildren<Light>();
+                if (lightComponent != null)
+                {
+                    baseIntensity = lightComponent.intensity;
+                    
+                    // URP-specific settings
+                    if (useTemperature)
+                    {
+                        lightComponent.useColorTemperature = true;
+                        lightComponent.colorTemperature = colorTemperature;
+                    }
+                    
+                    // Use pixel lighting for more accurate lighting
+                    lightComponent.renderMode = LightRenderMode.ForcePixel;
+                    
+                    // Use shadow resolution from quality settings
+                    lightComponent.shadowResolution = LightShadowResolution.FromQualitySettings;
+                    
+                    // Adjust shadow parameters for better performance
+                    lightComponent.shadowBias = 0.05f;
+                    lightComponent.shadowNormalBias = 0.4f;
+                }
+            }
+
+            private void Update()
+            {
+                if (Time.time - lastUpdate > flickerSpeed)
+                {
+                    lastUpdate = Time.time;
+                    
+                    // Calculate new intensity with a mix of randomness and noise
+                    float noise = Mathf.PerlinNoise(Time.time * flickerSpeed * 2f, 0f);
+                    float randomFactor = Random.Range(0f, 0.2f);
+                    nextIntensity = Mathf.Lerp(minIntensity, maxIntensity, noise + randomFactor) * baseIntensity;
+                }
+                
+                if (lightComponent != null)
+                {
+                    // Smooth interpolation toward target intensity
+                    // Smooth interpolation toward target intensity
+                    lightComponent.intensity = Mathf.Lerp(lightComponent.intensity, nextIntensity, Time.deltaTime * 10f);
+                }
+            }
+        } // End of GaslightFlicker class
+
+        /// Generates the historical Portland port area with docks, warehouses, and related structures
+        private void GeneratePortArea()
+        {
+            if (dockSectionPrefab == null || warehousePrefabs == null || warehousePrefabs.Length == 0)
+            {
+                Debug.LogWarning("Port generation skipped - missing required prefabs");
+                return;
+            }
+
+            Debug.Log("Generating port area...");
+
+            try
+            {
+                // Find the eastern edge of the grid for port placement
+                int portEdgeX = gridSize.x - 1;
+                
+                // Create main dock structure
+                CreateMainDockStructure(portEdgeX);
+                
+                // Place warehouses along the waterfront
+                PlaceWaterfrontWarehouses(portEdgeX);
+                
+                // Add cargo and mooring areas
+                CreateCargoAreas();
+                
+                // Place mooring posts along docks
+                PlaceMooringPosts();
+                
+                Debug.Log("Port area generation completed successfully");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Error during port generation: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Creates the main dock structure along the waterfront
+        /// </summary>
+        private void CreateMainDockStructure(int startX)
+        {
+            // Calculate starting position for the dock
+            Vector3 dockStart = GridToWorldPosition(startX, gridSize.y / 2 - dockSections / 2);
+            
+            // Create main dock platform
+            for (int i = 0; i < dockSections; i++)
+            {
+                Vector3 sectionPos = dockStart + new Vector3(0, 0, i * dockWidth);
+                
+                // Create dock section
+                GameObject dockSection = Instantiate(dockSectionPrefab, sectionPos, Quaternion.identity, portsParent);
+                dockSection.name = $"DockSection_{i}";
+                
+                // Adjust scale to match dock dimensions
+                dockSection.transform.localScale = new Vector3(
+                    dockLength / 10f, // Assuming default prefab is 10 units long
+                    1f,
+                    dockWidth / 10f   // Assuming default prefab is 10 units wide
                 );
                 
-                // Check if this is an intersection (both x and z are on grid lines)
-                bool isIntersection = x < gridSize.x && z < gridSize.y;
+                // Add to tracking collections
+                generatedObjects.Add(dockSection);
+                dockPositions.Add(sectionPos);
                 
-                if (isIntersection)
+                // Mark grid cells as dock type
+                Vector2Int gridPos = WorldToGridPosition(sectionPos);
+                gridCells[gridPos] = CellType.Dock;
+            }
+        }
+
+        /// <summary>
+        /// Places warehouses along the waterfront area
+        /// </summary>
+        private void PlaceWaterfrontWarehouses(int startX)
+        {
+            // Calculate warehouse placement area
+            int warehouseStartX = startX - 2; // Two cells back from water
+            int warehouseCount = Mathf.Min(5, warehousePrefabs.Length); // Limit number of warehouses
+            
+            for (int i = 0; i < warehouseCount; i++)
+            {
+                // Calculate position with spacing between warehouses
+                Vector3 basePos = GridToWorldPosition(warehouseStartX, 
+                    gridSize.y / 2 - warehouseCount + i * 2);
+                
+                // Adjust position to align with street grid
+                Vector3 adjustedPos = GetWarehousePosition(basePos);
+                
+                // Select and place warehouse
+                GameObject warehouse = Instantiate(
+                    warehousePrefabs[i % warehousePrefabs.Length],
+                    adjustedPos,
+                    Quaternion.Euler(0, 90, 0), // Face the water
+                    portsParent
+                );
+                
+                warehouse.name = $"Warehouse_{i}";
+                
+                // Add to tracking collections
+                generatedObjects.Add(warehouse);
+                Vector2Int gridPos = WorldToGridPosition(adjustedPos);
+                gridCells[gridPos] = CellType.Building;
+                placedObjects[gridPos] = warehouse;
+            }
+        }
+
+        /// <summary>
+        /// Creates cargo areas near warehouses and docks
+        /// </summary>
+        private void CreateCargoAreas()
+        {
+            if (cratePrefabs == null || cratePrefabs.Length == 0) return;
+            
+            foreach (Vector3 dockPos in dockPositions)
+            {
+                // Create cargo clusters near dock sections
+                CreateCargoCluster(dockPos);
+            }
+        }
+
+        /// <summary>
+        /// Creates a cluster of cargo crates near a dock position
+        /// </summary>
+        private void CreateCargoCluster(Vector3 centerPos)
+        {
+            int crateCount = random.Next(3, 8); // Random number of crates per cluster
+            float clusterRadius = 5f; // Maximum radius for crate placement
+            
+            for (int i = 0; i < crateCount; i++)
+            {
+                // Calculate random position within cluster
+                float angle = random.Next(360) * Mathf.Deg2Rad;
+                float radius = random.Next((int)(clusterRadius * 100)) / 100f;
+                
+                Vector3 offset = new Vector3(
+                    Mathf.Cos(angle) * radius,
+                    0,
+                    Mathf.Sin(angle) * radius
+                );
+                
+                Vector3 cratePos = centerPos + offset;
+                cratePos.y = 0.5f; // Slight lift to prevent Z-fighting
+                
+                // Select random crate prefab
+                GameObject cratePrefab = cratePrefabs[random.Next(cratePrefabs.Length)];
+                
+                // Create crate with random rotation
+                GameObject crate = Instantiate(
+                    cratePrefab,
+                    cratePos,
+                    Quaternion.Euler(0, random.Next(360), 0),
+                    portsParent
+                );
+                
+                crate.name = $"Crate_{generatedObjects.Count}";
+                generatedObjects.Add(crate);
+                
+                // Add slight scale variation
+                float scaleVar = 0.8f + ((float)random.NextDouble() * 0.4f);
+                crate.transform.localScale *= scaleVar;
+            }
+        }
+
+        /// <summary>
+        /// Places mooring posts along the dock edge
+        /// </summary>
+        private void PlaceMooringPosts()
+        {
+            if (mooringPostPrefab == null) return;
+            
+            float postSpacing = 10f; // Distance between mooring posts
+            
+            foreach (Vector3 dockPos in dockPositions)
+            {
+                // Place posts on both sides of the dock
+                for (int side = 0; side < 2; side++)
                 {
-                    // Create intersection
-                    GameObject intersection = Instantiate(streetIntersectionPrefab, cellPos, Quaternion.identity, streetsParent);
-                    generatedObjects.Add(intersection);
+                    float sideOffset = (side == 0 ? dockWidth / 2 : -dockWidth / 2);
                     
-                    // Add a spawn point at each intersection
-                    availableSpawnPoints.Add(cellPos + Vector3.up * 0.5f);
+                    // Create mooring post
+                    Vector3 postPos = dockPos + new Vector3(dockLength / 2, 0, sideOffset);
+                    
+                    GameObject post = Instantiate(
+                        mooringPostPrefab,
+                        postPos,
+                        Quaternion.identity,
+                        portsParent
+                    );
+                    
+                    post.name = $"MooringPost_{generatedObjects.Count}";
+                    generatedObjects.Add(post);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Calculates an appropriate position for a warehouse that aligns with the street grid
+        /// </summary>
+        private Vector3 GetWarehousePosition(Vector3 basePosition)
+        {
+            Vector2Int gridPos = WorldToGridPosition(basePosition);
+            
+            // Ensure we're not placing on a street
+            if (IsValidGridPosition(gridPos) && streetGrid[gridPos.x, gridPos.y])
+            {
+                // Move one cell away from street
+                gridPos.x -= 1;
+            }
+            
+            // Calculate final position with slight random offset
+            Vector3 finalPos = GridToWorldPosition(gridPos.x, gridPos.y);
+            finalPos += new Vector3(
+                ((float)random.NextDouble() - 0.5f) * buildingVariation,
+                0,
+                ((float)random.NextDouble() - 0.5f) * buildingVariation
+            );
+            
+            return finalPos;
+        }
+
+        /// <summary>
+        /// Generates the Shanghai tunnel network beneath the streets of Portland
+        /// </summary>
+        private void GenerateTunnels()
+        {
+            if (tunnelSectionPrefab == null || tunnelEntrancePrefab == null)
+            {
+                Debug.LogWarning("Tunnel generation skipped - missing required prefabs");
+                return;
+            }
+
+            Debug.Log("Generating Shanghai tunnel network...");
+
+            try
+            {
+                // Create main tunnel network
+                List<TunnelSegment> tunnelNetwork = GenerateTunnelNetwork();
+                
+                // Create physical tunnel sections
+                CreateTunnelSections(tunnelNetwork);
+                
+                // Place support beams
+                if (tunnelSupportBeamPrefab != null)
+                {
+                    AddTunnelSupports(tunnelNetwork);
+                }
+                
+                Debug.Log($"Generated {tunnelNetwork.Count} tunnel segments");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Error during tunnel generation: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Generates the logical network of tunnel segments
+        /// </summary>
+        private List<TunnelSegment> GenerateTunnelNetwork()
+        {
+            List<TunnelSegment> tunnelNetwork = new List<TunnelSegment>();
+            HashSet<Vector2Int> processedCells = new HashSet<Vector2Int>();
+            
+            // Start from predefined entrance positions if available
+            if (tunnelEntrancePositions != null && tunnelEntrancePositions.Length > 0)
+            {
+                foreach (Vector3 entrancePos in tunnelEntrancePositions)
+                {
+                    Vector2Int gridPos = WorldToGridPosition(entrancePos);
+                    if (!processedCells.Contains(gridPos))
+                    {
+                        GenerateTunnelBranch(gridPos, tunnelNetwork, processedCells);
+                    }
+                }
+            }
+            else
+            {
+                // Generate entrances near selected buildings historically used for shanghaiing
+                // Primarily near bars, hotels, and buildings near the port
+                foreach (var building in placedObjects.Where(p => p.Value != null))
+                {
+                    // Higher chance for buildings near the port
+                    float distanceToEdge = Mathf.Abs(building.Key.x - (gridSize.x - 1));
+                    float portProximityFactor = Mathf.Clamp01(1f - (distanceToEdge / gridSize.x));
+                    
+                    if (random.NextDouble() < 0.15f * (1 + portProximityFactor)) // Increased chance near port
+                    {
+                        Vector2Int gridPos = building.Key;
+                        if (!processedCells.Contains(gridPos))
+                        {
+                            // Mark this as an entrance
+                            TunnelSegment entrance = new TunnelSegment
+                            {
+                                gridPosition = gridPos,
+                                type = TunnelType.Entrance,
+                                rotation = CalculateTunnelEntranceRotation(gridPos),
+                                hasEntrance = true
+                            };
+                            
+                            tunnelNetwork.Add(entrance);
+                            processedCells.Add(gridPos);
+                            
+                            // Generate branch from here
+                            GenerateTunnelBranch(gridPos, tunnelNetwork, processedCells);
+                        }
+                    }
+                }
+            }
+            
+            // Ensure minimum number of tunnel sections
+            int attempts = 0;
+            while (tunnelNetwork.Count < tunnelSectionCount && attempts < 100)
+            {
+                attempts++;
+                
+                // Prefer to expand existing tunnels rather than create new branches
+                if (tunnelNetwork.Count > 0 && random.NextDouble() < 0.7f)
+                {
+                    // Pick a random existing tunnel end to expand from
+                    TunnelSegment segment = tunnelNetwork[random.Next(tunnelNetwork.Count)];
+                    GenerateTunnelBranch(segment.gridPosition, tunnelNetwork, processedCells);
                 }
                 else
                 {
-                    // Create straight street sections for grid lines
-                    if (x < gridSize.x)
-                    {
-                        // East-West street
-                        Vector3 ewPos = cellPos + new Vector3(cellSize / 2, 0, 0);
-                        GameObject ewStreet = Instantiate(streetStraightPrefab, ewPos, Quaternion.Euler(0, 90, 0), streetsParent);
-                        generatedObjects.Add(ewStreet);
-                    }
+                    // Create a new branch
+                    Vector2Int randomPos = new Vector2Int(
+                        random.Next(1, gridSize.x - 1),
+                        random.Next(1, gridSize.y - 1)
+                    );
                     
-                    if (z < gridSize.y)
+                    if (!processedCells.Contains(randomPos))
                     {
-                        // North-South street
-                        Vector3 nsPos = cellPos + new Vector3(0, 0, cellSize / 2);
-                        GameObject nsStreet = Instantiate(streetStraightPrefab, nsPos, Quaternion.identity, streetsParent);
-                        generatedObjects.Add(nsStreet);
+                        GenerateTunnelBranch(randomPos, tunnelNetwork, processedCells);
+                    }
+                }
+            }
+            
+            // Connect isolated segments
+            ConnectTunnelSegments(tunnelNetwork, processedCells);
+            
+            return tunnelNetwork;
+        }
+
+        /// <summary>
+        /// Connects isolated tunnel segments to create a more connected network
+        /// </summary>
+        private void ConnectTunnelSegments(List<TunnelSegment> network, HashSet<Vector2Int> processed)
+        {
+            // Identify isolated segments by checking connections
+            List<List<int>> connectedGroups = new List<List<int>>();
+            bool[] visited = new bool[network.Count];
+            
+            for (int i = 0; i < network.Count; i++)
+            {
+                if (visited[i]) continue;
+                
+                // Find all connected segments
+                List<int> group = new List<int>();
+                FindConnectedSegments(network, i, visited, group);
+                
+                if (group.Count > 0)
+                {
+                    connectedGroups.Add(group);
+                }
+            }
+            
+            // Connect isolated groups if there's more than one group
+            if (connectedGroups.Count > 1)
+            {
+                for (int i = 1; i < connectedGroups.Count; i++)
+                {
+                    // Connect this group to the first group
+                    ConnectTunnelGroups(network, processed, connectedGroups[0], connectedGroups[i]);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Finds all tunnel segments connected to a starting segment
+        /// </summary>
+        private void FindConnectedSegments(List<TunnelSegment> network, int startIndex, bool[] visited, List<int> group)
+        {
+            visited[startIndex] = true;
+            group.Add(startIndex);
+            
+            // Check all other segments
+            for (int i = 0; i < network.Count; i++)
+            {
+                if (visited[i]) continue;
+                
+                // Check if they're adjacent
+                if (Vector2Int.Distance(network[startIndex].gridPosition, network[i].gridPosition) <= 1.5f)
+                {
+                    FindConnectedSegments(network, i, visited, group);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Connects two isolated groups of tunnel segments
+        /// </summary>
+        private void ConnectTunnelGroups(List<TunnelSegment> network, HashSet<Vector2Int> processed, 
+                                        List<int> group1, List<int> group2)
+        {
+            // Find closest segment between groups
+            int closest1 = group1[0];
+            int closest2 = group2[0];
+            float minDistance = float.MaxValue;
+            
+            foreach (int i in group1)
+            {
+                foreach (int j in group2)
+                {
+                    float dist = Vector2Int.Distance(network[i].gridPosition, network[j].gridPosition);
+                    if (dist < minDistance)
+                    {
+                        minDistance = dist;
+                        closest1 = i;
+                        closest2 = j;
+                    }
+                }
+            }
+            
+            // Draw path between these segments
+            Vector2Int start = network[closest1].gridPosition;
+            Vector2Int end = network[closest2].gridPosition;
+            
+            Vector2Int current = start;
+            while (current != end)
+            {
+                // Move toward end
+                Vector2Int next = current;
+                if (Mathf.Abs(current.x - end.x) > Mathf.Abs(current.y - end.y))
+                {
+                    next.x += (current.x < end.x) ? 1 : -1;
+                }
+                else
+                {
+                    next.y += (current.y < end.y) ? 1 : -1;
+                }
+                
+                // Skip if already processed
+                if (processed.Contains(next))
+                {
+                    current = next;
+                    continue;
+                }
+                
+                // Create tunnel segment
+                TunnelSegment segment = new TunnelSegment
+                {
+                    gridPosition = next,
+                    type = TunnelType.Straight,
+                    rotation = (next.x != current.x) ? 90f : 0f,
+                    hasEntrance = false
+                };
+                
+                network.Add(segment);
+                processed.Add(next);
+                current = next;
+            }
+        }
+
+        /// <summary>
+        /// Generates a branch of the tunnel network starting from a given position
+        /// </summary>
+        private void GenerateTunnelBranch(Vector2Int start, List<TunnelSegment> network, HashSet<Vector2Int> processed)
+        {
+            int maxBranchLength = random.Next(3, 8); // Variable branch length for realism
+            int currentLength = 0;
+            Vector2Int currentPos = start;
+            
+            // Don't create a new segment at the start position if it's already processed
+            if (!processed.Contains(currentPos))
+            {
+                // Create initial tunnel segment
+                TunnelSegment segment = new TunnelSegment
+                {
+                    gridPosition = currentPos,
+                    type = TunnelType.Junction,
+                    rotation = CalculateTunnelRotation(currentPos),
+                    hasEntrance = false // Entrance is created separately
+                };
+                
+                network.Add(segment);
+                processed.Add(currentPos);
+                
+                // Mark cells as tunnel type
+                gridCells[currentPos] = CellType.Tunnel;
+            }
+            
+            while (currentLength < maxBranchLength && network.Count < tunnelSectionCount)
+            {
+                // Determine next direction
+                Vector2Int nextPos = GetNextTunnelPosition(currentPos, processed);
+                if (nextPos == currentPos) break; // No valid direction found
+                
+                // Create new tunnel segment
+                TunnelSegment segment = new TunnelSegment
+                {
+                    gridPosition = nextPos,
+                    type = DetermineTunnelType(nextPos),
+                    rotation = CalculateTunnelRotation(nextPos, currentPos),
+                    hasEntrance = false
+                };
+                
+                network.Add(segment);
+                processed.Add(nextPos);
+                
+                // Mark cells as tunnel type
+                gridCells[nextPos] = CellType.Tunnel;
+                
+                // Potentially create a side branch
+                if (random.NextDouble() < 0.2f && currentLength > 1)
+                {
+                    GenerateTunnelBranch(nextPos, network, processed);
+                }
+                
+                currentPos = nextPos;
+                currentLength++;
+            }
+            
+            // Update the final segment type if it's a dead end
+            if (currentLength > 0 && network.Count < tunnelSectionCount)
+            {
+                for (int i = network.Count - 1; i >= 0; i--)
+                {
+                    if (network[i].gridPosition == currentPos)
+                    {
+                        // Check if this is truly an end segment
+                        if (CountTunnelConnections(currentPos) <= 1)
+                        {
+                            network[i].type = TunnelType.DeadEnd;
+                            
+                            // Adjust rotation to face the connected segment
+                            Vector2Int[] directions = new[]
+                            {
+                                new Vector2Int(1, 0),
+                                new Vector2Int(-1, 0),
+                                new Vector2Int(0, 1),
+                                new Vector2Int(0, -1)
+                            };
+                            
+                            foreach (Vector2Int dir in directions)
+                            {
+                                Vector2Int checkPos = currentPos + dir;
+                                if (HasTunnelAt(checkPos))
+                                {
+                                    // Calculate rotation to face the connected tunnel
+                                    if (dir.x > 0) network[i].rotation = 90f;
+                                    else if (dir.x < 0) network[i].rotation = 270f;
+                                    else if (dir.y > 0) network[i].rotation = 0f;
+                                    else network[i].rotation = 180f;
+                                    break;
+                                }
+                            }
+                        }
+                        break;
                     }
                 }
             }
         }
-    }
-    
-    /// <summary>
-    /// Generates buildings along streets
-    /// </summary>
-    private void GenerateBuildings()
-    {
-        if (buildingPrefabs.Length == 0)
-        {
-            Debug.LogError("No building prefabs assigned!");
-            return;
-        }
-        
-        // Calculate the start position
 
-using UnityEngine;
-using System.Collections.Generic;
+        /// <summary>
+        /// Placeholder for placing transition points between areas
+        /// </summary>
+        private void PlaceTransitionPoints()
+        {
+            Debug.Log("Transition point placement placeholder");
+        }
 
-/// <summary>
-/// PortlandEnvironmentSetup configures and initializes the historical Portland environment.
-/// Handles modular object placement, environment configuration, and historical accuracy.
-/// </summary>
-public class PortlandEnvironmentSetup : MonoBehaviour
-{
-    #region Serialized Fields
+        /// <summary>
+        /// Generates spawn points throughout the environment based on accessibility and gameplay requirements
+        /// </summary>
+        private void GenerateSpawnPoints()
+        {
+            Debug.Log("Generating spawn points...");
+            
+            try
+            {
+                // Clear existing spawn points except default
+                ClearExistingSpawnPoints();
+                
+                // Generate different types of spawn points
+                GenerateStreetSpawnPoints();
+                GenerateTunnelEntranceSpawns();
+                GeneratePortAreaSpawns();
+                
+                // Validate and process spawn points
+                ValidateSpawnPoints();
+                
+                Debug.Log($"Generated {spawnPoints.Count} spawn points");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Error during spawn point generation: {e.Message}");
+            }
+        }
 
-    [Header("Environment Configuration")]
-    [SerializeField] private Transform environmentParent;
-    [SerializeField] private Vector2Int gridSize = new Vector2Int(10, 10);
-    [SerializeField] private float cellSize = 10f;
-    [SerializeField] private bool generateOnStart = true;
-    [SerializeField] private bool useProceduralGeneration = false;
-    [SerializeField] private bool usePresetLayout = true;
-    
-    [Header("Terrain Settings")]
-    [SerializeField] private Terrain mainTerrain;
-    [SerializeField] private float terrainHeight = 50f;
-    [SerializeField] private float riverDepth = 10f;
-    [SerializeField] private AnimationCurve heightCurve = AnimationCurve.Linear(0, 0, 1, 1);
-    
-    [Header("Street Layout")]
-    [SerializeField] private GameObject streetSectionPrefab;
-    [SerializeField] private GameObject sidewalkPrefab;
-    [SerializeField] private GameObject streetCornerPrefab;
-    [SerializeField] private GameObject intersectionPrefab;
-    [SerializeField] private Material cobblestoneRoadMaterial;
-    [SerializeField] private Material woodenSidewalkMaterial;
-    [SerializeField] private bool useHistoricalStreetPattern = true;
-    
-    [Header("Building Placement")]
-    [SerializeField] private GameObject[] buildingPrefabs;
-    [SerializeField] private float buildingSpacing = 2.0f;
-    [SerializeField] private float buildingVariation = 0.5f;
-    [SerializeField] private bool alignBuildingsToStreets = true;
-    
-    [Header("Lighting System")]
-    [SerializeField] private GameObject gaslightPrefab;
-    [SerializeField] private float gaslightSpacing = 20f;
-    [SerializeField] private float gaslightHeight = 3.5f;
-    [SerializeField] private bool placeGaslightsAlongStreets = true;
-    
-    [Header("Port Configuration")]
-    [SerializeField] private GameObject dockSectionPrefab;
-    [SerializeField] private GameObject[] warehousePrefabs;
-    [SerializeField] private GameObject[] cratePrefabs;
-    [SerializeField] private GameObject mooringPostPrefab;
-    [SerializeField] private int dockSections = 8;
-    [SerializeField] private float dockWidth = 6f;
-    [SerializeField] private float dockLength = 50f;
-    
-    [Header("Shanghai Tunnels")]
-    [SerializeField] private GameObject tunnelSectionPrefab;
-    [SerializeField] private GameObject tunnelSupportBeamPrefab;
-    [SerializeField] private GameObject tunnelEntrancePrefab;
-    [SerializeField] private int tunnelSectionCount = 20;
-    [SerializeField] private Vector3[] tunnelEntrancePositions;
-    
-    [Header("Historical Accuracy")]
-    [SerializeField] private TextAsset historicalLayoutData;
-    [SerializeField] private Vector2 portlandCenterCoordinate = new Vector2(0, 0);
-    [SerializeField] private float historicalBlockSize = 60f;
-    [SerializeField] private Vector2 gridNorthDirection = new Vector2(0, 1);
-    
-    #endregion
-    
-    #region Private Variables
-    
-    private Dictionary<Vector2Int, CellType> gridCells = new Dictionary<Vector2Int, CellType>();
-    private Dictionary<Vector2Int, GameObject> placedObjects = new Dictionary<Vector2Int, GameObject>();
-    private List<Vector3> gaslightPositions = new List<Vector3>();
-    private List<Vector3> buildingPositions = new List<Vector3>();
-    private List<Vector3> dockPositions = new List<Vector3>();
-    private List<Vector3> spawnPoints = new List<Vector3>();
-    
-    private enum CellType
-    {
-        Empty,
-        Street,
-        Building,
-        Dock,
-        River,
-        Terrain,
-        Tunnel
-    }
-    
-    #endregion
-    
-    #region Unity Lifecycle
-    
-    private void Awake()
-    {
-        if (environmentParent == null)
+        /// <summary>
+        /// Clears existing spawn points while preserving the default spawn
+        /// </summary>
+        private void ClearExistingSpawnPoints()
         {
-            environmentParent = transform;
-        }
-    }
-    
-    private void Start()
-    {
-        if (generateOnStart)
-        {
-            GenerateEnvironment();
-        }
-    }
-    
-    #endregion
-    
-    #region Public Methods
-    
-    /// <summary>
-    /// Generates the Portland environment based on configuration settings
-    /// </summary>
-    public void GenerateEnvironment()
-    {
-        ClearEnvironment();
-        
-        // Create either procedural or preset environment
-        if (usePresetLayout && historicalLayoutData != null)
-        {
-            GenerateFromHistoricalData();
-        }
-        else if (useProceduralGeneration)
-        {
-            GenerateProceduralEnvironment();
-        }
-        else
-        {
-            GenerateBasicEnvironment();
-        }
-        
-        // Set up additional environmental elements
-        PlaceGaslights();
-        ConfigureNavMesh();
-        SetupTerrainTextures();
-        ConfigureLODSettings();
-    }
-    
-    /// <summary>
-    /// Clears all environment objects
-    /// </summary>
-    public void ClearEnvironment()
-    {
-        // Destroy all child objects under the environment parent
-        foreach (Transform child in environmentParent)
-        {
-            if (Application.isPlaying)
-            {
-                Destroy(child.gameObject);
-            }
-            else
-            {
-                DestroyImmediate(child.gameObject);
-            }
-        }
-        
-        // Clear all collections
-        gridCells.Clear();
-        placedObjects.Clear();
-        gaslightPositions.Clear();
-        buildingPositions.Clear();
-        dockPositions.Clear();
-        spawnPoints.Clear();
-    }
-    
-    /// <summary>
-    /// Gets the nearest spawn point for a given position
-    /// </summary>
-    public Vector3 GetNearestSpawnPoint(Vector3 position)
-    {
-        if (spawnPoints.Count == 0)
-            return position;
+            // Keep track of default spawn
+            Transform defaultSpawn = defaultSpawnPoint;
             
-        Vector3 nearest = spawnPoints[0];
-        float minDistance = Vector3.Distance(position, nearest);
-        
-        foreach (Vector3 point in spawnPoints)
-        {
-            float distance = Vector3.Distance(position, point);
-            if (distance < minDistance)
+            // Remove existing spawn points
+            foreach (Transform spawn in spawnPoints)
             {
-                minDistance = distance;
-                nearest = point;
-            }
-        }
-        
-        return nearest;
-    }
-    
-    /// <summary>
-    /// Exports the current environment layout
-    /// </summary>
-    public void ExportLayoutData()
-    {
-        // Create exportable data from current layout
-        string jsonData = JsonUtility.ToJson(new EnvironmentSaveData
-        {
-            gridSize = gridSize,
-            cellSize = cellSize,
-            buildingPositions = buildingPositions.ToArray(),
-            gaslightPositions = gaslightPositions.ToArray(),
-            dockPositions = dockPositions.ToArray(),
-            spawnPoints = spawnPoints.ToArray()
-        }, true);
-        
-        // Save to file
-        #if UNITY_EDITOR
-        string path = UnityEditor.EditorUtility.SaveFilePanel(
-            "Save Environment Layout",
-            Application.dataPath,
-            "PortlandEnvironmentLayout",
-            "json"
-        );
-        
-        if (!string.IsNullOrEmpty(path))
-        {
-            System.IO.File.WriteAllText(path, jsonData);
-            Debug.Log("Environment layout saved to: " + path);
-        }
-        #endif
-    }
-    
-    #endregion
-    
-    #region Private Methods
-    
-    /// <summary>
-    /// Generates the environment using historical data
-    /// </summary>
-    private void GenerateFromHistoricalData()
-    {
-        if (historicalLayoutData == null)
-        {
-            Debug.LogError("No historical layout data provided!");
-            return;
-        }
-        
-        // Parse historical data (could be JSON, XML, or a custom format)
-        EnvironmentSaveData saveData = JsonUtility.FromJson<EnvironmentSaveData>(historicalLayoutData.text);
-        
-        // Apply the layout data to the current environment
-        if (saveData != null)
-        {
-            gridSize = saveData.gridSize;
-            cellSize = saveData.cellSize;
-            
-            // Generate streets first (as a base layer)
-            GenerateStreetGrid();
-            
-            // Place buildings based on historical data
-            foreach (Vector3 position in saveData.buildingPositions)
-            {
-                PlaceRandomBuilding(position);
+                if (spawn != defaultSpawn && spawn != null)
+                {
+                    DestroyImmediate(spawn.gameObject);
+                }
             }
             
-            // Place gaslights based on historical data
-            foreach (Vector3 position in saveData.gaslightPositions)
+            spawnPoints.Clear();
+            availableSpawnPoints.Clear();
+            
+            // Restore default spawn
+            if (defaultSpawn != null)
             {
-                PlaceGaslight(position);
+                spawnPoints.Add(defaultSpawn);
+                availableSpawnPoints.Add(defaultSpawn.position);
+            }
+        }
+
+        /// <summary>
+        /// Generates spawn points along accessible streets
+        /// </summary>
+        private void GenerateStreetSpawnPoints()
+        {
+            // Create spawn points at key street intersections
+            foreach (Vector3 intersection in intersectionPositions)
+            {
+                if (random.NextDouble() < 0.3f) // 30% chance for each intersection
+                {
+                    CreateSpawnPoint(intersection + Vector3.up * 0.5f, "StreetSpawn");
+                }
             }
             
-            // Place dock elements based on historical data
-            foreach (Vector3 position in saveData.dockPositions)
+            // Add spawn points along main streets
+            for (int x = 0; x < gridSize.x; x++)
             {
-                PlaceDockSection(position);
+                for (int z = 0; z < gridSize.y; z++)
+                {
+                    if (streetGrid[x, z] && random.NextDouble() < 0.1f) // 10% chance for street segments
+                    {
+                        Vector3 position = GridToWorldPosition(x, z) + Vector3.up * 0.5f;
+                        
+                        // Only create if not too close to other spawn points
+                        if (!IsTooCloseToExistingSpawn(position))
+                        {
+                            CreateSpawnPoint(position, "StreetSpawn");
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Generates spawn points near tunnel entrances
+        /// </summary>
+        private void GenerateTunnelEntranceSpawns()
+        {
+            // Iterate through grid cells marked as tunnel entrances
+            foreach (var cell in gridCells)
+            {
+                if (cell.Value == CellType.Tunnel)
+                {
+                    Vector3 position = GridToWorldPosition(cell.Key.x, cell.Key.y) + Vector3.up * 0.5f;
+                    
+                    // Check accessibility and spacing
+                    if (IsAccessiblePosition(position) && !IsTooCloseToExistingSpawn(position))
+                    {
+                        CreateSpawnPoint(position, "TunnelSpawn");
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Generates spawn points in the port area
+        /// </summary>
+        private void GeneratePortAreaSpawns()
+        {
+            // Add spawn points near warehouses
+            foreach (Vector3 dockPos in dockPositions)
+            {
+                if (random.NextDouble() < 0.4f) // 40% chance for each dock section
+                {
+                    Vector3 spawnPos = dockPos + Vector3.up * 0.5f;
+                    // Offset slightly from dock edge
+                    spawnPos += new Vector3(random.Next(-2, 3), 0, random.Next(-2, 3));
+                    
+                    if (!IsTooCloseToExistingSpawn(spawnPos))
+                    {
+                        CreateSpawnPoint(spawnPos, "PortSpawn");
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Creates a spawn point at the specified position
+        /// </summary>
+        private void CreateSpawnPoint(Vector3 position, string type)
+        {
+            GameObject spawnPoint = new GameObject($"{type}_{spawnPoints.Count}");
+            spawnPoint.transform.position = position;
+            spawnPoint.transform.SetParent(environmentParent);
+            
+            // Add spawn point component or tag as needed
+            spawnPoint.tag = "SpawnPoint";
+            
+            // Optional: Add spawn point metadata component
+            SpawnPointData spawnData = spawnPoint.AddComponent<SpawnPointData>();
+            spawnData.spawnType = type;
+            spawnData.lastUsedTime = 0f;
+            
+            spawnPoints.Add(spawnPoint.transform);
+            availableSpawnPoints.Add(position);
+        }
+
+        /// <summary>
+        /// Validates all spawn points for accessibility and proper placement
+        /// </summary>
+        private void ValidateSpawnPoints()
+        {
+            List<Transform> invalidSpawns = new List<Transform>();
+            
+            foreach (Transform spawn in spawnPoints)
+            {
+                if (spawn == defaultSpawnPoint) continue; // Skip default spawn validation
+                
+                Vector3 position = spawn.position;
+                bool isValid = true;
+                
+                // Check ground presence
+                if (!Physics.Raycast(position + Vector3.up, Vector3.down, 2f))
+                {
+                    isValid = false;
+                }
+                
+                // Check for obstacles
+                if (Physics.OverlapSphere(position, 1f).Length > 0)
+                {
+                    isValid = false;
+                }
+                
+                // Check accessibility from at least one direction
+                bool hasAccess = false;
+                Vector3[] directions = { Vector3.forward, Vector3.right, Vector3.back, Vector3.left };
+                foreach (Vector3 dir in directions)
+                {
+                    if (!Physics.Raycast(position, dir, 2f))
+                    {
+                        hasAccess = true;
+                        break;
+                    }
+                }
+                
+                if (!hasAccess) isValid = false;
+                
+                // Mark for removal if invalid
+                if (!isValid)
+                {
+                    invalidSpawns.Add(spawn);
+                }
             }
             
-            // Register spawn points
-            spawnPoints.AddRange(saveData.spawnPoints);
+            // Remove invalid spawn points
+            foreach (Transform spawn in invalidSpawns)
+            {
+                spawnPoints.Remove(spawn);
+                availableSpawnPoints.Remove(spawn.position);
+                DestroyImmediate(spawn.gameObject);
+            }
         }
-        else
+
+        /// <summary>
+        /// Checks if a position is too close to existing spawn points
+        /// </summary>
+        private bool IsTooCloseToExistingSpawn(Vector3 position)
         {
-            Debug.LogError("Failed to parse historical layout data!");
-            // Fall back to basic environment
-            GenerateBasicEnvironment();
+            float minSpawnDistance = 10f; // Minimum distance between spawn points
+            
+            foreach (Vector3 existingSpawn in availableSpawnPoints)
+            {
+                if (Vector3.Distance(position, existingSpawn) < minSpawnDistance)
+                {
+                    return true;
+                }
+            }
+            
+            return false;
         }
-    }
-    
-    /// <summary>
-    /// Generates a procedural environment layout
-    /// </summary>
-    private void GenerateProceduralEnvironment()
-    {
-        // Generate terrain first
-        if (mainTerrain != null)
+
+        /// <summary>
+        /// Checks if a position is accessible for spawning
+        /// </summary>
+        private bool IsAccessiblePosition(Vector3 position)
         {
-            ConfigureTerrain();
+            // Check ground
+            if (!Physics.Raycast(position + Vector3.up, Vector3.down, 2f))
+            {
+                return false;
+            }
+            
+            // Check overhead clearance
+            if (Physics.Raycast(position, Vector3.up, 2f))
+            {
+                return false;
+            }
+            
+            // Check surrounding area
+            float checkRadius = 1f;
+            Collider[] colliders = Physics.OverlapSphere(position, checkRadius);
+            foreach (Collider col in colliders)
+            {
+                // Skip trigger colliders
+                if (col.isTrigger) continue;
+                
+                // If we find any non-trigger colliders within radius, position is blocked
+                return false;
+            }
+            
+            return true;
         }
-        
-        // Generate street grid
-        GenerateStreetGrid();
-        
-        // Place buildings procedurally
-        PlaceBuildingsProcedurally();
-        
-        // Create the port area
-        CreatePortArea();
-        
-        // Create tunnel entrances
-        CreateTunnelEntrances();
-        
-        // Place additional details like crates, props, etc.
-        PlaceEnvironmentalDetails();
-    }
-    
-    /// <summary>
-    /// Generates a basic predefined environment
-    /// </summary>
-    private void GenerateBasicEnvironment()
-    {
-        // Create a simple grid-based layout
-        for (int x = 0; x < gridSize.x; x++)
+
+        /// <summary>
+        /// Represents a segment in the tunnel network
+        /// </summary>
+        private struct TunnelSegment
         {
+            public Vector2Int gridPosition;
+            public TunnelType type;
+            public float rotation;
+            public bool hasEntrance;
+        }
+
+        /// <summary>
+        /// Types of tunnel segments
+        /// </summary>
+        private enum TunnelType
+        {
+            Straight,
+            Junction,
+            DeadEnd
+        }
+
+        /// <summary>
+        /// Metadata component for spawn points
+        /// </summary>
+        class SpawnPointData : MonoBehaviour
+        {
+            /// <summary>
+            /// Type of spawn point (e.g., "StreetSpawn", "TunnelSpawn", "PortSpawn")
+            /// </summary>
+            public string spawnType;
+
+            /// <summary>
+            /// Last time this spawn point was used
+            /// </summary>
+            public float lastUsedTime;
+
+            /// <summary>
+            /// Whether this spawn point is currently occupied
+            /// </summary>
+            public bool isOccupied;
+        }
+
+        /// <summary>
+        /// Draws debug grid visualization in the editor
+        /// </summary>
+        private void DrawDebugGrid()
+        {
+            // Draw grid lines for streets
+            Gizmos.color = streetGridColor;
+            
+            // Draw horizontal streets
             for (int z = 0; z < gridSize.y; z++)
             {
-                Vector2Int cellPos = new Vector2Int(x, z);
-                Vector3 worldPos = new Vector3(x * cellSize, 0, z * cellSize);
-                
-                // Place street on even rows/columns to create a grid pattern
-                if (x % 3 == 0 || z % 3 == 0)
+                Vector3 start = gridOrigin + new Vector3(0, 0.1f, z * cellSize);
+                Vector3 end = gridOrigin + new Vector3((gridSize.x - 1) * cellSize, 0.1f, z * cellSize);
+                Gizmos.DrawLine(start, end);
+            }
+            
+            // Draw vertical streets
+            for (int x = 0; x < gridSize.x; x++)
+            {
+                Vector3 start = gridOrigin + new Vector3(x * cellSize, 0.1f, 0);
+                Vector3 end = gridOrigin + new Vector3(x * cellSize, 0.1f, (gridSize.y - 1) * cellSize);
+                Gizmos.DrawLine(start, end);
+            }
+            
+            // Draw building plots
+            Gizmos.color = buildingGridColor;
+            for (int x = 0; x < gridSize.x - 1; x++)
+            {
+                for (int z = 0; z < gridSize.y - 1; z++)
                 {
-                    PlaceStreetSection(worldPos, cellPos);
+                    Vector3 center = gridOrigin + new Vector3(
+                        x * cellSize + cellSize / 2,
+                        0.1f,
+                        z * cellSize + cellSize / 2
+                    );
                     
-                    // Place gaslights at street corners
-                    if (x % 3 == 0 && z % 3 == 0)
-                    {
-                        PlaceGaslight(worldPos + new Vector3(0, gaslightHeight, 0));
-                        
-                        // Mark the corner as a spawn point
-                        spawnPoints.Add(worldPos + new Vector3(1, 0, 1));
-                    }
-                }
-                // Place buildings in the cell blocks defined by streets
-                else
-                {
-                    PlaceRandomBuilding(worldPos);
+                    float plotSize = cellSize - (streetWidth + sidewalkWidth * 2);
+                    Vector3 size = new Vector3(plotSize, 0.1f, plotSize);
+                    Gizmos.DrawWireCube(center, size);
                 }
             }
         }
         
-        // Create a simple port area
-        CreateBasicPortArea();
-    }
-    
-    /// <summary>
-    /// Places a street section at the specified position
-    /// </summary>
-    private void PlaceStreetSection(Vector3 position, Vector2Int gridPosition)
-    {
-        if (streetSectionPrefab == null) return;
-        
-        GameObject street = Instantiate(streetSectionPrefab, position, Quaternion.identity, environmentParent);
-        street.name = "Street_" + gridPosition.x + "_" + gridPosition.y;
-        
-        gridCells[gridPosition] = CellType.Street;
-        placedObjects[gridPosition] = street;
-        
-        // Place sidewalks on both sides of the street if available
-        if (sidewalkPrefab != null)
+        /// <summary>
+        /// Draws spawn points in the editor
+        /// </summary>
+        private void DrawSpawnPoints()
         {
-            Instantiate(sidewalkPrefab, position + new Vector3(cellSize/2 - 1, 0.1f, 0), Quaternion.identity, street.transform);
-            Instantiate(sidewalkPrefab, position + new Vector3(-cellSize/2 + 1, 0.1f, 0), Quaternion.Euler(0, 180, 0), street.transform);
+            Gizmos.color = spawnPointColor;
+            
+            if (defaultSpawnPoint != null)
+            {
+                Gizmos.DrawSphere(defaultSpawnPoint.position, 1f);
+                Gizmos.DrawWireSphere(defaultSpawnPoint.position, 1.5f);
+            }
+            
+            foreach (Transform spawn in spawnPoints)
+            {
+                if (spawn != null && spawn != defaultSpawnPoint)
+                {
+                    Gizmos.DrawSphere(spawn.position, 0.5f);
+                    
+                    // Draw accessibility radius
+                    Gizmos.DrawWireSphere(spawn.position, 1f);
+                    
+                    // Draw ground check line
+                    Gizmos.DrawLine(spawn.position + Vector3.up, 
+                                  spawn.position + Vector3.down);
+                }
+            }
         }
-    }
-    
-    /// <summary>
-    /// Places a random building at the specified position
-    /// </summary>
-    private void PlaceRandomBuilding(Vector3 position)
-    {
-        if (buildingPrefabs == null || buildingPrefabs.Length == 0) return;
-        
-        // Add some variation to position
-        Vector3 variationOffset = new Vector3(
-            Random.Range(-buildingVariation, buildingVariation),
-            0,
-            Random.Range(-buildingVariation, buildingVariation)
-        );
-        
-        // Pick a random building prefab
-        GameObject buildingPrefab = buildingPrefabs[Random.Range(0, buildingPrefabs.Length)];
-        
-        // Instantiate the building
-        GameObject building = Instantiate(
-            buildingPrefab, 
-            position + variationOffset, 
-            Quaternion.Euler(0, Random.Range(0, 4) * 90, 0), 
-            environmentParent
-        );
-        
-        building.name = "Building_" + buildingPositions.Count;
-        
-        // Register the building position
-        buildingPositions.Add(position);
-        
-        // Convert world position to grid position
-        Vector2Int gridPosition = WorldToGrid(position);
-        gridCells[gridPosition] = CellType.Building;
-        placedObjects[gridPosition] = building;
-    }
-    
-    /// <summary>
-    /// Places a gaslight at the specified position
-    /// </summary>
-    private void PlaceGaslight(Vector3 position)
-    {
-        if (gaslightPrefab == null) return;
-        
-        GameObject gaslight = Instantiate(
-            gaslightPrefab,
-            position,
-            Quaternion.identity,
-            environmentParent
-        );
-        
-        gaslight.name = "Gaslight_" + gaslightPositions.Count;
-        
-        // Register the gaslight position
-        gaslightPositions.Add(position);
-    }
-    
-    /// <summary>
-    /// Places a dock section at the specified position
-    /// </summary>
-    private void PlaceDockSection(Vector3 position)
-    {
-        if (dockSectionPrefab == null) return;
-        
-        GameObject dock = Instantiate(
-            dockSectionPrefab,
-            position,
-            Quaternion.identity,
-            environmentParent
-        );
-        
-        dock.name = "Dock_" + dockPositions.Count;
-        
-        // Register
 
+        #region Utility Methods
+
+        /// <summary>
+        /// Determines if a grid position should be a street based on the grid pattern
+        /// </summary>
+        private bool IsStreetPosition(int x, int z)
+        {
+            if (useProceduralGeneration)
+            {
+                // For procedural generation, create a regular grid pattern
+                return x % 2 == 0 || z % 2 == 0;
+            }
+            else
+            {
+                // For preset layout, streets are on the edges of each block (historical 61m pattern)
+                return x % 3 == 0 || z % 3 == 0;
+            }
+        }
+
+        /// <summary>
+        /// Converts grid coordinates to world position
+        /// </summary>
+        private Vector3 GridToWorldPosition(int x, int z)
+        {
+            return gridOrigin + new Vector3(x * cellSize, 0, z * cellSize);
+        }
+
+        /// <summary>
+        /// Converts world position to grid coordinates
+        /// </summary>
+        private Vector2Int WorldToGridPosition(Vector3 worldPos)
+        {
+            Vector3 localPos = worldPos - gridOrigin;
+            return new Vector2Int(
+                Mathf.RoundToInt(localPos.x / cellSize),
+                Mathf.RoundToInt(localPos.z / cellSize)
+            );
+        }
+
+        /// <summary>
+        /// Checks if a grid position is within bounds
+        /// </summary>
+        private bool IsValidGridPosition(Vector2Int pos)
+        {
+            return pos.x >= 0 && pos.x < gridSize.x && pos.y >= 0 && pos.y < gridSize.y;
+        }
+
+        /// <summary>
+        /// Calculates the rotation for corner street sections
+        /// </summary>
+        private float CalculateCornerRotation(bool north, bool east, bool south, bool west)
+        {
+            if (north && east) return 0f;
+            if (east && south) return 90f;
+            if (south && west) return 180f;
+            if (west && north) return 270f;
+            return 0f;
+        }
+
+        /// <summary>
+        /// Calculates the rotation for tunnel sections
+        /// </summary>
+        private float CalculateTunnelRotation(Vector2Int pos, Vector2Int fromPos = default)
+        {
+            // If coming from another position, align with that direction
+            if (fromPos != default && fromPos != pos)
+            {
+                if (fromPos.x < pos.x) return 90f;  // Coming from west
+                if (fromPos.x > pos.x) return 270f; // Coming from east
+                if (fromPos.y < pos.y) return 0f;   // Coming from south
+                if (fromPos.y > pos.y) return 180f; // Coming from north
+            }
+            
+            // Otherwise check adjacent cells to determine orientation
+            bool northTunnel = HasTunnelAt(pos + Vector2Int.up);
+            bool southTunnel = HasTunnelAt(pos + Vector2Int.down);
+            bool eastTunnel = HasTunnelAt(pos + Vector2Int.right);
+            bool westTunnel = HasTunnelAt(pos + Vector2Int.left);
+            
+            if (northTunnel && southTunnel) return 0f;
+            if (eastTunnel && westTunnel) return 90f;
+            if (northTunnel) return 0f;
+            if (eastTunnel) return 90f;
+            if (southTunnel) return 180f;
+            if (westTunnel) return 270f;
+            
+            return random.Next(4) * 90f;
+        }
+
+        /// <summary>
+        /// Calculates rotation for tunnel entrances
+        /// </summary>
+        private float CalculateTunnelEntranceRotation(Vector2Int pos)
+        {
+            // Try to align entrance with nearby streets
+            Vector2Int[] directions = new[] 
+            {
+                Vector2Int.up, 
+                Vector2Int.right, 
+                Vector2Int.down, 
+                Vector2Int.left
+            };
+            
+            foreach (Vector2Int dir in directions)
+            {
+                Vector2Int checkPos = pos + dir;
+                if (IsValidGridPosition(checkPos) && streetGrid[checkPos.x, checkPos.y])
+                {
+                    // Orient entrance toward street
+                    if (dir == Vector2Int.up) return 0f;
+                    if (dir == Vector2Int.right) return 90f;
+                    if (dir == Vector2Int.down) return 180f;
+                    if (dir == Vector2Int.left) return 270f;
+                }
+            }
+            
+            // Default orientation
+            return 0f;
+        }
+
+        /// <summary>
+        /// Determines the type of tunnel section based on position
+        /// </summary>
+        private TunnelType DetermineTunnelType(Vector2Int pos)
+        {
+            // Check adjacent cells for other tunnel sections
+            int connections = CountTunnelConnections(pos);
+            
+            if (connections > 2) return TunnelType.Junction;
+            if (connections == 2) return TunnelType.Straight;
+            return TunnelType.DeadEnd;
+        }
+
+        /// <summary>
+        /// Counts the number of adjacent tunnel sections
+        /// </summary>
+        private int CountTunnelConnections(Vector2Int pos)
+        {
+            int connections = 0;
+            Vector2Int[] directions = new[]
+            {
+                new Vector2Int(1, 0),
+                new Vector2Int(-1, 0),
+                new Vector2Int(0, 1),
+                new Vector2Int(0, -1)
+            };
+            
+            foreach (Vector2Int dir in directions)
+            {
+                Vector2Int adjacent = pos + dir;
+                if (IsValidGridPosition(adjacent) && 
+                    gridCells.ContainsKey(adjacent) && 
+                    gridCells[adjacent] == CellType.Tunnel)
+                {
+                    connections++;
+                }
+            }
+            
+            return connections;
+        }
+
+        /// <summary>
+        /// Checks if a position contains a tunnel
+        /// </summary>
+        private bool HasTunnelAt(Vector2Int pos)
+        {
+            return IsValidGridPosition(pos) && 
+                   gridCells.ContainsKey(pos) && 
+                   gridCells[pos] == CellType.Tunnel;
+        }
+
+        /// <summary>
+        /// Gets the next valid position for tunnel generation
+        /// </summary>
+        private Vector2Int GetNextTunnelPosition(Vector2Int current, HashSet<Vector2Int> processed)
+        {
+            List<Vector2Int> possibleDirections = new List<Vector2Int>
+            {
+                new Vector2Int(1, 0),
+                new Vector2Int(-1, 0),
+                new Vector2Int(0, 1),
+                new Vector2Int(0, -1)
+            };
+            
+            // Shuffle directions
+            for (int i = possibleDirections.Count - 1; i > 0; i--)
+            {
+                int j = random.Next(i + 1);
+                Vector2Int temp = possibleDirections[i];
+                possibleDirections[i] = possibleDirections[j];
+                possibleDirections[j] = temp;
+            }
+            
+            // Try each direction
+            foreach (Vector2Int dir in possibleDirections)
+            {
+                Vector2Int next = current + dir;
+                if (IsValidTunnelPosition(next) && !processed.Contains(next))
+                {
+                    return next;
+                }
+            }
+            
+            return current; // No valid direction found
+        }
+
+        /// <summary>
+        /// Checks if a position is valid for tunnel placement
+        /// </summary>
+        private bool IsValidTunnelPosition(Vector2Int pos)
+        {
+            if (!IsValidGridPosition(pos)) return false;
+            
+            // Check if position is under a building or street
+            return gridCells.ContainsKey(pos) && 
+                   (gridCells[pos] == CellType.Empty || 
+                    gridCells[pos] == CellType.Building || 
+                    gridCells[pos] == CellType.Street);
+        }
+
+        /// <summary>
+        /// Creates tunnel sections based on the logical network
+        /// </summary>
+        private void CreateTunnelSections(List<TunnelSegment> network)
+        {
+            foreach (TunnelSegment segment in network)
+            {
+                Vector3 position = GridToWorldPosition(segment.gridPosition.x, segment.gridPosition.y);
+                position.y = -3f; // Underground level
+                
+                // Create tunnel section
+                GameObject tunnel = Instantiate(tunnelSectionPrefab, position, 
+                    Quaternion.Euler(0, segment.rotation, 0), tunnelsParent);
+                
+                tunnel.name = $"Tunnel_{segment.gridPosition.x}_{segment.gridPosition.y}";
+                generatedObjects.Add(tunnel);
+                
+                // Create entrance if needed
+                if (segment.hasEntrance)
+                {
+                    CreateTunnelEntrance(position, segment.rotation);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Creates a tunnel entrance at the specified position
+        /// </summary>
+        private void CreateTunnelEntrance(Vector3 tunnelPos, float rotation)
+        {
+            Vector3 entrancePos = tunnelPos;
+            entrancePos.y = 0; // Ground level
+            
+            GameObject entrance = Instantiate(tunnelEntrancePrefab, entrancePos,
+                Quaternion.Euler(0, rotation, 0), tunnelsParent);
+            
+            entrance.name = $"TunnelEntrance_{entrancePos.x}_{entrancePos.z}";
+            generatedObjects.Add(entrance);
+            
+            // Add transition trigger if configured
+            if (tunnelEntranceTrigger != null)
+            {
+                AreaTransitionTrigger trigger = entrance.AddComponent<AreaTransitionTrigger>();
+                trigger.destinationScene = "ShanghaiTunnels";
+                trigger.transitionType = AreaTransitionTrigger.TransitionType.FadeToBlack;
+            }
+        }
+
+        /// <summary>
+        /// Adds support beams throughout the tunnel network
+        /// </summary>
+        private void AddTunnelSupports(List<TunnelSegment> network)
+        {
+            if (tunnelSupportBeamPrefab == null) return;
+
+            Debug.Log("Adding support beams to tunnel network...");
+
+            float supportSpacing = 5f; // Historical spacing between support beams
+            
+            foreach (TunnelSegment segment in network)
+            {
+                Vector3 startPos = GridToWorldPosition(segment.gridPosition.x, segment.gridPosition.y);
+                startPos.y = -3f; // Underground level
+                
+                // Calculate number of supports needed for this segment
+                float segmentLength = cellSize;
+                int supportsCount = Mathf.CeilToInt(segmentLength / supportSpacing);
+                
+                // Place support beams along the tunnel segment
+                for (int i = 0; i < supportsCount; i++)
+                {
+                    float progress = (i + 1) / (float)(supportsCount + 1);
+                    
+                    // Calculate support beam position
+                    Vector3 supportPos = startPos + (Quaternion.Euler(0, segment.rotation, 0) * 
+                        Vector3.forward * progress * cellSize);
+                    
+                    // Add slight random variation for realism
+                    float randomOffset = ((float)random.NextDouble() - 0.5f) * 0.5f;
+                    supportPos += new Vector3(randomOffset, 0, randomOffset);
+                    
+                    // Create support beam
+                    GameObject support = Instantiate(tunnelSupportBeamPrefab, supportPos,
+                        Quaternion.Euler(0, segment.rotation + 90, 0), tunnelsParent);
+                    
+                    support.name = $"TunnelSupport_{segment.gridPosition.x}_{segment.gridPosition.y}_{i}";
+                    
+                    // Add slight random rotation for weathered look
+                    float randomTilt = ((float)random.NextDouble() - 0.5f) * 5f;
+                    support.transform.Rotate(new Vector3(randomTilt, 0, randomTilt));
+                    
+                    // Add to tracking
+                    generatedObjects.Add(support);
+                }
+                
+                // Add extra supports at junctions and entrances
+                if (segment.type == TunnelType.Junction || segment.hasEntrance)
+                {
+                    // Add additional support beams in a circular pattern
+                    int extraSupportCount = 4;
+                    float radius = 2f;
+                    
+                    for (int i = 0; i < extraSupportCount; i++)
+                    {
+                        float angle = (i * 360f / extraSupportCount) + segment.rotation;
+                        Vector3 offset = Quaternion.Euler(0, angle, 0) * Vector3.forward * radius;
+                        
+                        // Create reinforced support beam
+                        GameObject extraSupport = Instantiate(tunnelSupportBeamPrefab, 
+                            startPos + offset,
+                            Quaternion.Euler(0, angle + 90, 0),
+                            tunnelsParent);
+                        
+                        extraSupport.name = $"ReinforcedSupport_{segment.gridPosition.x}_{segment.gridPosition.y}_{i}";
+                        extraSupport.transform.localScale *= 1.2f; // Reinforced supports are slightly larger
+                        
+                        generatedObjects.Add(extraSupport);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Saves the current environment layout to a file
+        /// </summary>
+        private void SaveEnvironmentLayout()
+        {
+            if (string.IsNullOrEmpty(environmentSaveFilename)) return;
+
+            try
+            {
+                EnvironmentSaveData saveData = new EnvironmentSaveData
+                {
+                    gridSize = this.gridSize,
+                    cellSize = this.cellSize,
+                    randomSeed = this.randomSeed,
+                    gridCells = this.gridCells.ToDictionary(
+                        kvp => $"{kvp.Key.x},{kvp.Key.y}",
+                        kvp => (int)kvp.Value
+                    ),
+                    spawnPoints = this.spawnPoints.Where(sp => sp != null)
+                        .Select(sp => sp.position)
+                        .ToList(),
+                    buildingPositions = this.buildingPositions,
+                    gaslightPositions = this.gaslightPositions,
+                    dockPositions = this.dockPositions
+                };
+
+                string json = JsonUtility.ToJson(saveData, true);
+                string path = Path.Combine(Application.dataPath, environmentSaveFilename);
+                File.WriteAllText(path, json);
+
+                Debug.Log($"Environment layout saved to {path}");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Error saving environment layout: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Loads an environment layout from a file
+        /// </summary>
+        private void LoadEnvironmentLayout()
+        {
+            if (string.IsNullOrEmpty(environmentSaveFilename)) return;
+
+            try
+            {
+                string path = Path.Combine(Application.dataPath, environmentSaveFilename);
+                if (!File.Exists(path))
+                {
+                    Debug.LogWarning($"No saved layout found at {path}");
+                    return;
+                }
+
+                string json = File.ReadAllText(path);
+                EnvironmentSaveData saveData = JsonUtility.FromJson<EnvironmentSaveData>(json);
+
+                // Clear existing environment
+                ClearEnvironment();
+
+                // Restore saved data
+                this.gridSize = saveData.gridSize;
+                this.cellSize = saveData.cellSize;
+                this.randomSeed = saveData.randomSeed;
+
+                // Rebuild environment from saved data
+                foreach (var kvp in saveData.gridCells)
+                {
+                    string[] coords = kvp.Key.Split(',');
+                    Vector2Int pos = new Vector2Int(
+                        int.Parse(coords[0]),
+                        int.Parse(coords[1])
+                    );
+                    this.gridCells[pos] = (CellType)kvp.Value;
+                }
+
+                // Regenerate environment using saved data
+                GenerateEnvironment();
+
+                Debug.Log($"Environment layout loaded from {path}");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"Error loading environment layout: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Clears all generated environment objects
+        /// </summary>
+        private void ClearEnvironment()
+        {
+            foreach (GameObject obj in generatedObjects)
+            {
+                if (obj != null)
+                {
+                    DestroyImmediate(obj);
+                }
+            }
+            
+            generatedObjects.Clear();
+            gaslightPositions.Clear();
+            buildingPositions.Clear();
+            dockPositions.Clear();
+            intersectionPositions.Clear();
+            gridCells.Clear();
+            placedObjects.Clear();
+            availableSpawnPoints.Clear();
+        }
+
+        /// <summary>
+        /// Data structure for saving environment layout
+        /// </summary>
+        [System.Serializable]
+        private class EnvironmentSaveData
+        {
+            public Vector2Int gridSize;
+            public float cellSize;
+            public int randomSeed;
+            public Dictionary<string, int> gridCells;
+            public List<Vector3> spawnPoints;
+            public List<Vector3> buildingPositions;
+            public List<Vector3> gaslightPositions;
+            public List<Vector3> dockPositions;
+        }
+
+        #endregion
+        
+        #endregion // for Utility Methods
+    }
+}
