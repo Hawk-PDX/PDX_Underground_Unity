@@ -1,0 +1,20 @@
+{
+    "name": "PDXUnderground.Editor",
+    "rootNamespace": "PDXUnderground.Editor",
+    "references": [
+        "PDXUnderground.Runtime",
+        "PDXUnderground.Systems",
+        "PDXUnderground.UI"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

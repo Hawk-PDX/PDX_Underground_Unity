@@ -1,0 +1,17 @@
+{
+    "name": "PDXUnderground.UI",
+    "rootNamespace": "PDXUnderground.UI",
+    "references": [
+        "PDXUnderground.Runtime",
+        "PDXUnderground.Systems"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
