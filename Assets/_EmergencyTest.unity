@@ -1,12 +1,3 @@
-%YAML 1.1
-%TAG !u! tag:unity3d.com,2011:
---- !u!1 &1
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component: []
-  m_Name: EmergencyScene
-  m_TagString: Untagged
+version https://git-lfs.github.com/spec/v1
+oid sha256:04ca026494da6a3ea3ec9284f9bae0e36352f404c722a8a39d663a89195ef6aa
+size 282
