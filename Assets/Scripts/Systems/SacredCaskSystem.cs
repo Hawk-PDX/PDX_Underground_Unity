@@ -1,4 +1,7 @@
 using UnityEngine;
+using PDXUnderground.Player;
+using System.Linq;
+using PDXUnderground.Systems;
 
 namespace PDXUnderground.Systems
 {

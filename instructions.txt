@@ -1,3 +1,0 @@
-- Create new scene named "Init"
-- Add empty GameObject named "GameManager"
-- Attach GameManager.cs script to it

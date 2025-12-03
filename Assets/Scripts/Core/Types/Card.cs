@@ -1,5 +1,6 @@
 using UnityEngine;
 using PDXUnderground.Core.Interfaces;
+using PDXUnderground.Models.Interfaces;
 using PDXUnderground.Core;  // Explicit reference for clarity
 
 namespace PDXUnderground.Core

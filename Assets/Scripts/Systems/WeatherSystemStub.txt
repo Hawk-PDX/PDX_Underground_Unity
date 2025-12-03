@@ -1,0 +1,1 @@
+This is a temporary stub - safe to remove after TraumaSystem refactor

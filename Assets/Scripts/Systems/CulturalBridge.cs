@@ -1,6 +1,5 @@
-
-using System.Collections.Generic;
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace PDXUnderground.Systems
 {
@@ -15,7 +14,7 @@ namespace PDXUnderground.Systems
 
         public void ApplyHerbalMedicine()
         {
-            var gambler = FindObjectOfType<GamblerCharacter>();
+            var gambler = FindObjectOfType<PDXUnderground.Player.GamblerCharacter>();
             gambler.Heal(medicineHealAmount);
             
             // Special Agarwood effect
@@ -37,4 +36,3 @@ namespace PDXUnderground.Systems
         }
     }
 }
-

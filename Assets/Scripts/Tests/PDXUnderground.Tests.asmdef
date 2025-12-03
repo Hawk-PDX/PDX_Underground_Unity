@@ -2,17 +2,9 @@
     "name": "PDXUnderground.Tests",
     "rootNamespace": "PDXUnderground.Tests",
     "references": [
-        "PDXUnderground.Core",
-        "PDXUnderground.Models",
-        "PDXUnderground.Systems",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],
-    "includePlatforms": [
-        "Editor"
-    ],
-    "excludePlatforms": [],
-    "allowUnsafeCode": false,
     "overrideReferences": true,
     "precompiledReferences": [
         "nunit.framework.dll"

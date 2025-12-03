@@ -3,8 +3,12 @@
     "rootNamespace": "PDXUnderground.Systems",
     "references": [
         "PDXUnderground.Core",
-        "PDXUnderground.Models"
+        "PDXUnderground.Models",
+        "PDXUnderground.Runtime",
+        "PDXUnderground.Game"
     ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,
     "precompiledReferences": [],
@@ -13,4 +17,3 @@
     "versionDefines": [],
     "noEngineReferences": false
 }
-

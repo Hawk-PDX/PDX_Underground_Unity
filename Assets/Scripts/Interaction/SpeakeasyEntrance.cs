@@ -7,7 +7,6 @@ using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;  // For Volume and VolumeProfile
 using UnityEngine.SceneManagement;
 using PDXUnderground.Core.Interfaces;
-using PDXUnderground.Core.Models;
 
 // Force error if URP is not enabled
 #if !USING_URP

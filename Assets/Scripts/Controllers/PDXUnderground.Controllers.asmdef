@@ -3,9 +3,7 @@
     "rootNamespace": "PDXUnderground.Controllers",
     "references": [
         "PDXUnderground.Core",
-        "PDXUnderground.Models",
-        "PDXUnderground.Systems",
-        "PDXUnderground.Environment"
+        "PDXUnderground.Models"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

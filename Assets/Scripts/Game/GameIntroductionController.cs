@@ -6,7 +6,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using PDXUnderground.Core;
-using PDXUnderground.Core.Models;  // For TimeOfDay and GameState enums
 using PDXUnderground.Core.Data;
 using PDXUnderground.Core.Interfaces; // For IGaslightFlicker interface
 namespace PDXUnderground.Game

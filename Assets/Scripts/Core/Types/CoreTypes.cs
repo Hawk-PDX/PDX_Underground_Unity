@@ -4,26 +4,6 @@ using UnityEngine;
 namespace PDXUnderground.Core
 {
     /// <summary>
-    /// Interface for all cards in the game
-    /// </summary>
-    public interface ICard
-    {
-        int Id { get; set; }
-        string Name { get; set; }
-        string Description { get; set; }
-        CardType Type { get; set; }
-        int Value { get; set; }
-        float EnergyCost { get; set; }
-        float Cooldown { get; set; }
-        float Damage { get; set; }
-        float LastUseTime { get; set; }
-        int Suit { get; set; }
-        int Rank { get; set; }
-        SpecialEffect SpecialEffect { get; set; }
-    }
-
-
-    /// <summary>
     /// Interface for all damageable entities in the game
     /// </summary>
     public interface IDamageable
@@ -81,7 +61,10 @@ namespace PDXUnderground.Core
         Weaken,
         Strengthen,
         Shield,
-        Regenerate
+        Regenerate,
+        Heal,
+        EnergyBoost,
+        Chaos
     }
 
     /// <summary>
