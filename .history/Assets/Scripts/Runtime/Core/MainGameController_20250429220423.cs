@@ -4,13 +4,17 @@ using System.Collections.Generic;
 
 namespace PDXUnderground.Core
 {
-
+    /// <summary>
+    /// Main controller for the PDX Underground game. Manages game state, environment, and buzz level.
+    /// Provides comprehensive game flow control and cross-cutting concerns management.
+    /// Implemented as a singleton to allow easy access from other scripts.
+    /// </summary>
     public class MainGameController : MonoBehaviour
     {
         #region Singleton Pattern
         // Singleton instance
         private static MainGameController _instance;
-
+        
         // Public accessor for the singleton instance
         public static MainGameController Instance
         {
@@ -18,8 +22,8 @@ namespace PDXUnderground.Core
             {
                 if (_instance == null)
                 {
-                    _instance = FindFirstObjectByType<MainGameController>();
-
+                    _instance = FindObjectOfType<MainGameController>();
+                    
                     if (_instance == null)
                     {
                         Debug.LogWarning("No MainGameController found in scene. Creating a default instance.");
@@ -27,11 +31,11 @@ namespace PDXUnderground.Core
                         _instance = controllerObject.AddComponent<MainGameController>();
                     }
                 }
-
+                
                 return _instance;
             }
         }
-
+        
         // Make sure we don't create duplicate controllers
         private void Awake()
         {
@@ -41,19 +45,19 @@ namespace PDXUnderground.Core
                 Destroy(gameObject);
                 return;
             }
-
+            
             _instance = this;
             DontDestroyOnLoad(gameObject);
-
+            
             // Initialize the controller
             InitializeGameSystems();
         }
         #endregion
-
+        
         #region Properties and References
         [Header("UI References")]
         [SerializeField] private BuzzUIController buzzUIController;
-
+        
         [Header("Character References")]
         [SerializeField] private GamblerCharacter playerCharacter;
         #endregion
@@ -71,10 +75,10 @@ namespace PDXUnderground.Core
             GameOver,
             Victory
         }
-
+        
         // Current game state
         [SerializeField] private GameState _currentState = GameState.MainMenu;
-
+        
         // Property to get/set the current game state
         public GameState CurrentState
         {
@@ -90,11 +94,11 @@ namespace PDXUnderground.Core
                 }
             }
         }
-
+        
         // Enhanced game state change event
         public delegate void GameStateChangedHandler(GameState previousState, GameState newState);
         public event GameStateChangedHandler OnGameStateChanged;
-
+        
         private void HandleStateTransition(GameState previousState, GameState newState)
         {
             switch (newState)
@@ -102,11 +106,11 @@ namespace PDXUnderground.Core
                 case GameState.MainMenu:
                     Time.timeScale = 1f;
                     break;
-
+                    
                 case GameState.Loading:
                     // Handle loading state
                     break;
-
+                    
                 case GameState.Playing:
                     Time.timeScale = 1f;
                     if (previousState == GameState.Paused)
@@ -119,47 +123,47 @@ namespace PDXUnderground.Core
                         ResetGameState();
                     }
                     break;
-
+                    
                 case GameState.Paused:
                     Time.timeScale = 0f;
                     break;
-
+                    
                 case GameState.CardSelection:
                     // Handle card selection state
                     break;
-
+                    
                 case GameState.Dialogue:
                     // Handle dialogue state
                     break;
-
+                    
                 case GameState.GameOver:
                     // Handle game over state
                     break;
-
+                    
                 case GameState.Victory:
                     // Handle victory state
                     break;
             }
-
+            
             Debug.Log($"Game State changed from {previousState} to {newState}");
         }
         #endregion
-
+        
         #region Environment Management
         [Header("Environment")]
         [SerializeField] private int currentEnvironmentIndex = 0;
         [SerializeField] private string[] environmentTypes = { "Streets", "Tunnels", "Speakeasy" };
-
+        
         public enum Environment
         {
             Streets,
             Tunnels,
             Speakeasy
         }
-
+        
         // Current environment
         [SerializeField] private Environment _currentEnvironment = Environment.Streets;
-
+        
         // Property to get/set the current environment
         public Environment CurrentEnvironment
         {
@@ -171,21 +175,21 @@ namespace PDXUnderground.Core
                     Environment prevEnvironment = _currentEnvironment;
                     _currentEnvironment = value;
                     OnEnvironmentChanged?.Invoke(prevEnvironment, _currentEnvironment);
-
+                    
                     // Notify with additional environment details
                     string environmentName = environmentTypes[currentEnvironmentIndex];
                     OnEnvironmentTypeChanged?.Invoke(environmentName, (int)value);
                 }
             }
         }
-
+        
         // Events for environment changes
         public delegate void EnvironmentChangedHandler(Environment previousEnvironment, Environment newEnvironment);
         public event EnvironmentChangedHandler OnEnvironmentChanged;
-
+        
         public delegate void EnvironmentTypeChangedHandler(string environmentName, int environmentIndex);
         public event EnvironmentTypeChangedHandler OnEnvironmentTypeChanged;
-
+        
         /// <summary>
         /// Changes the current environment and notifies all relevant systems
         /// </summary>
@@ -196,23 +200,23 @@ namespace PDXUnderground.Core
                 Debug.LogError($"Invalid environment index: {environmentIndex}");
                 return;
             }
-
+            
             currentEnvironmentIndex = environmentIndex;
             CurrentEnvironment = (Environment)environmentIndex;
-
+            
             // Update UI
             if (buzzUIController != null)
             {
                 Debug.Log($"Updated UI visuals to {environmentTypes[environmentIndex]} theme");
             }
-
+            
             // Apply environment effects to player
             if (playerCharacter != null)
             {
                 ApplyEnvironmentEffects();
             }
         }
-
+        
         private void ApplyEnvironmentEffects()
         {
             switch (CurrentEnvironment)
@@ -229,14 +233,14 @@ namespace PDXUnderground.Core
             }
         }
         #endregion
-
+        
         #region Buzz Management
         // Buzz level (0-100)
-        [SerializeField][Range(0f, 100f)] private float _buzzLevel = 0f;
-
+        [SerializeField] [Range(0f, 100f)] private float _buzzLevel = 0f;
+        
         // Critical buzz level threshold
-        [SerializeField][Range(0f, 100f)] private float _criticalBuzzLevel = 30f;
-
+        [SerializeField] [Range(0f, 100f)] private float _criticalBuzzLevel = 30f;
+        
         // Property to get/set the buzz level
         public float BuzzLevel
         {
@@ -245,11 +249,11 @@ namespace PDXUnderground.Core
             {
                 float prevValue = _buzzLevel;
                 _buzzLevel = Mathf.Clamp(value, 0f, 100f);
-
+                
                 if (_buzzLevel != prevValue)
                 {
                     OnBuzzLevelChanged?.Invoke(prevValue, _buzzLevel);
-
+                    
                     // Check for critical buzz level
                     if (prevValue > _criticalBuzzLevel && _buzzLevel <= _criticalBuzzLevel)
                     {
@@ -262,61 +266,61 @@ namespace PDXUnderground.Core
                 }
             }
         }
-
+        
         // Property to check if buzz level is critical
         public bool IsBuzzCritical => _buzzLevel > _criticalBuzzLevel;
-
+        
         // Events for buzz level changes
         public event System.Action<float, float> OnBuzzLevelChanged;
         public event System.Action OnEnterCriticalBuzz;
         public event System.Action OnExitCriticalBuzz;
-
+        
         // Methods to modify buzz level
         public void AdjustBuzzLevel(float delta)
         {
             BuzzLevel += delta;
         }
-
+        
         public void SetBuzzLevel(float value)
         {
             BuzzLevel = value;
         }
         #endregion
-
+        
         #region Initialization and Updates
         private void InitializeGameSystems()
         {
             // Find references if not assigned in inspector
             if (buzzUIController == null)
                 buzzUIController = FindObjectOfType<BuzzUIController>();
-
+                
             if (playerCharacter == null)
                 playerCharacter = FindObjectOfType<GamblerCharacter>();
-
+            
             // Set up default event handlers
             SetupEventHandlers();
-
+            
             Debug.Log("Main Game Controller initialized!");
         }
-
+        
         private void SetupEventHandlers()
         {
-            OnGameStateChanged += (prev, current) =>
+            OnGameStateChanged += (prev, current) => 
                 Debug.Log($"Game state changed from {prev} to {current}");
-
-            OnEnvironmentChanged += (prev, current) =>
+                
+            OnEnvironmentChanged += (prev, current) => 
                 Debug.Log($"Environment changed from {prev} to {current}");
-
-            OnBuzzLevelChanged += (prev, current) =>
+                
+            OnBuzzLevelChanged += (prev, current) => 
                 Debug.Log($"Buzz level changed from {prev:F1} to {current:F1}");
-
-            OnEnterCriticalBuzz += () =>
+                
+            OnEnterCriticalBuzz += () => 
                 Debug.Log("Entered critical buzz state!");
-
-            OnExitCriticalBuzz += () =>
+                
+            OnExitCriticalBuzz += () => 
                 Debug.Log("Exited critical buzz state");
         }
-
+        
         private void Update()
         {
             if (CurrentState == GameState.Playing)
@@ -324,7 +328,7 @@ namespace PDXUnderground.Core
                 UpdateGameplay();
             }
         }
-
+        
         private void UpdateGameplay()
         {
             // Time-based buzz level decay
@@ -335,7 +339,7 @@ namespace PDXUnderground.Core
             }
         }
         #endregion
-
+        
         #region Game Control Methods
         public void StartGame()
         {
@@ -344,7 +348,7 @@ namespace PDXUnderground.Core
             CurrentEnvironment = Environment.Streets;
             Debug.Log("Game started");
         }
-
+        
         public void PauseGame()
         {
             if (CurrentState == GameState.Playing)
@@ -353,7 +357,7 @@ namespace PDXUnderground.Core
                 Debug.Log("Game paused");
             }
         }
-
+        
         public void ResumeGame()
         {
             if (CurrentState == GameState.Paused)
@@ -362,19 +366,19 @@ namespace PDXUnderground.Core
                 Debug.Log("Game resumed");
             }
         }
-
+        
         public void EndGame()
         {
             CurrentState = GameState.GameOver;
             Debug.Log("Game over");
         }
-
+        
         public void ReturnToMainMenu()
         {
             CurrentState = GameState.MainMenu;
             Debug.Log("Returned to main menu");
         }
-
+        
         private void ResetGameState()
         {
             // Reset player character
@@ -382,14 +386,14 @@ namespace PDXUnderground.Core
             {
                 SetBuzzLevel(0f);
             }
-
+            
             // Reset environment
             ChangeEnvironment(0);
-
+            
             Debug.Log("Game state has been reset for a new game");
         }
         #endregion
-
+        
         #region Testing API
         /// <summary>
         /// Modifies the player's buzz level by the specified amount
@@ -400,7 +404,7 @@ namespace PDXUnderground.Core
             SetBuzzLevel(newBuzz);
             Debug.Log($"Modified Buzz to {newBuzz}");
         }
-
+        
         /// <summary>
         /// Set player buzz to critical threshold
         /// </summary>
@@ -410,7 +414,7 @@ namespace PDXUnderground.Core
             SetBuzzLevel(criticalLevel);
             Debug.Log($"Set Critical Buzz level: {criticalLevel}");
         }
-
+        
         /// <summary>
         /// Triggers the player to draw a card
         /// </summary>
@@ -421,7 +425,7 @@ namespace PDXUnderground.Core
                 Debug.Log("Player drew a card");
             }
         }
-
+        
         /// <summary>
         /// Triggers the player to use a specific card ability
         /// </summary>

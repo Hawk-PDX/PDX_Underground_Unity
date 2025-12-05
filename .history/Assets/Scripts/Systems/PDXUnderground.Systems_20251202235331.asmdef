@@ -1,12 +1,10 @@
 {
-    "name": "PDXUnderground.RootEditor",
-    "rootNamespace": "PDXUnderground.Editor",
+    "name": "PDXUnderground.Systems",
+    "rootNamespace": "PDXUnderground.Systems",
     "references": [
-        "PDXUnderground"
+        "PDXUnderground.Runtime"
     ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,
